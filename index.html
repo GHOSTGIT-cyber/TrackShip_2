@@ -45,10 +45,8 @@
                     <label for="filtreNavire">Filtre navire :</label>
                     <select id="filtreNavire">
                         <option value="tous">Tous les navires</option>
-                        <option value="cargo">Cargo uniquement</option>
-                        <option value="passager">Navires à passagers</option>
-                        <option value="peche">Bateaux de pêche</option>
-                    </select>
+                        <option value="mouvement">En mouvement uniquement</option>
+                        <option value="arrete">À l'arrêt uniquement</option>
                 </div>
             </div>
 
@@ -56,15 +54,15 @@
             <div class="form-group">
                 <div>
                     <label for="latitudeCenter">Latitude centre :</label>
-                    <input type="number" id="latitudeCenter" value="49.4944" step="0.0001">
+                    <input type="number" id="latitudeCenter" value="48.853229" step="0.0001">
                 </div>
                 <div>
                     <label for="longitudeCenter">Longitude centre :</label>
-                    <input type="number" id="longitudeCenter" value="0.1079" step="0.0001">
+                    <input type="number" id="longitudeCenter" value="2.225328" step="0.0001">
                 </div>
                 <div>
                     <label for="rayonSurveillance">Rayon surveillance (km) :</label>
-                    <input type="number" id="rayonSurveillance" value="5" min="1" max="50">
+                    <input type="number" id="rayonSurveillance" value="3" min="1" max="50">
                 </div>
             </div>
 
@@ -213,12 +211,17 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
             
-            // Marqueur de position de surveillance
-            L.marker([lat, lon]).addTo(map)
-                .bindPopup('📍 Position de surveillance')
-                .openPopup();
-            
-            dessinerZonesSurveillance();
+            // Logo de votre entreprise sur la base
+            const logoIcon = L.icon({
+                iconUrl: 'assets/1.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
+
+            L.marker([lat, lon], {icon: logoIcon}).addTo(map)
+                .bindPopup('🏢 Votre Base - Position de surveillance')
+                .openPopup()
         }
 
         // ========================================
@@ -732,8 +735,23 @@
                     `<span class="status-indicator status-error">❌ ${error.message}</span>`;
             }
         }
+        
+        function filtrerNavires(navires) {
+            const filtre = document.getElementById('filtreNavire').value;
+            
+            if (filtre === 'tous') {
+                return navires;
+            } else if (filtre === 'mouvement') {
+                return navires.filter(navire => navire.speed && navire.speed > 0.5);
+            } else if (filtre === 'arrete') {
+                return navires.filter(navire => !navire.speed || navire.speed <= 0.5);
+            }
+            
+            return navires;
+        }
 
         function afficherNavires(navires) {
+            const naviresFiltrés = filtrerNavires(navires);
             // Supprimer les marqueurs existants
             markersNavires.forEach(marker => map.removeLayer(marker));
             markersNavires = [];
@@ -764,15 +782,36 @@
                 }
                 
                 // Marqueur sur la carte
-                const marker = L.marker([navire.latitude, navire.longitude])
+                // Icônes bateaux colorées selon la zone
+                let bateauIcon;
+                if (analyse.zone === 'alerte') {
+                    bateauIcon = L.divIcon({
+                        html: '<div style="background: #dc3545; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚢</div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+                } else if (analyse.zone === 'vigilance') {
+                    bateauIcon = L.divIcon({
+                        html: '<div style="background: #fd7e14; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚢</div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+                } else {
+                    bateauIcon = L.divIcon({
+                        html: '<div style="background: #28a745; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; font-size: 12px;">🚢</div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    });
+                }
+
+                const marker = L.marker([navire.latitude, navire.longitude], {icon: bateauIcon})
                     .addTo(map)
                     .bindPopup(`
-                        <strong>${navire.shipName || 'Navire inconnu'}</strong><br>
+                        <strong>🚢 ${navire.shipName || 'Navire inconnu'}</strong><br>
                         MMSI: ${navire.mmsi}<br>
                         Distance: ${Math.round(analyse.distance)}m<br>
                         Zone: ${analyse.zone}
                     `);
-                markersNavires.push(marker);
                 
                 // Élément dans la liste
                 const navireElement = document.createElement('div');
