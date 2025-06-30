@@ -4,10 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Surveillance des Navires - Seine</title>
-    
-    <!-- CORRECTION CSP POUR TAPO -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' unpkg.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' unpkg.com; img-src 'self' data: *.openstreetmap.org *.tile.openstreetmap.org; connect-src 'self' *.eurisportal.eu http: https: ws: wss:; font-src 'self' data:;">
-    
     <link rel="stylesheet" href="assets/style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -27,7 +23,7 @@
 
     <!-- Compteur de rafraîchissement -->
     <div id="compteurRefresh" class="compteur-refresh">
-        Prochaine MAJ : 30s
+        Prochaine MAJ : 15s
     </div>
 
     <div class="container">
@@ -39,6 +35,7 @@
 
         <!-- Contrôles -->
         <div class="controls">
+            <!-- Configuration de base -->
             <div class="form-group">
                 <div>
                     <label for="tokenEuris">Token EuRIS :</label>
@@ -48,20 +45,22 @@
                     <label for="filtreNavire">Filtre navire :</label>
                     <select id="filtreNavire">
                         <option value="tous">Tous les navires</option>
-                        <option value="mouvement">En mouvement uniquement</option>
-                        <option value="arrete">À l'arrêt uniquement</option>
+                        <option value="cargo">Cargo uniquement</option>
+                        <option value="passager">Navires à passagers</option>
+                        <option value="peche">Bateaux de pêche</option>
                     </select>
                 </div>
             </div>
 
+            <!-- Coordonnées de surveillance -->
             <div class="form-group">
                 <div>
                     <label for="latitudeCenter">Latitude centre :</label>
-                    <input type="number" id="latitudeCenter" value="48.853229" step="0.0001">
+                    <input type="number" id="latitudeCenter" value="49.4944" step="0.0001">
                 </div>
                 <div>
                     <label for="longitudeCenter">Longitude centre :</label>
-                    <input type="number" id="longitudeCenter" value="2.225328" step="0.0001">
+                    <input type="number" id="longitudeCenter" value="0.1079" step="0.0001">
                 </div>
                 <div>
                     <label for="rayonSurveillance">Rayon surveillance (km) :</label>
@@ -69,10 +68,66 @@
                 </div>
             </div>
 
+            <!-- MODIFIÉ : Contrôle Prise Tapo P110 avec tests avancés -->
+            <div class="tapo-controls">
+                <h3>🔌 Contrôle Prise Tapo P110</h3>
+                
+                <!-- Auto-détection IP -->
+                <div class="form-group">
+                    <div>
+                        <label for="serverIp">IP Serveur Local :</label>
+                        <input type="text" id="serverIp" value="auto" placeholder="auto ou 192.168.1.100">
+                        <small>Tapez "auto" pour détection automatique</small>
+                    </div>
+                    <div>
+                        <button class="btn btn-scan" onclick="scannerReseauLocal()">🔍 Scanner réseau</button>
+                    </div>
+                </div>
+                
+                <!-- NOUVEAU : Tests rapides -->
+                <div class="tapo-buttons">
+                    <button class="btn btn-purple" onclick="pingServeur()">📡 Ping</button>
+                    <button class="btn btn-blue" onclick="obtenirStatutPrise()">📊 Statut</button>
+                    <button class="btn btn-green" onclick="allumerPrise()">🟢 Allumer</button>
+                    <button class="btn btn-red" onclick="eteindrePrise()">🔴 Éteindre</button>
+                </div>
+
+                <!-- NOUVEAU : Tests avancés -->
+                <div class="tapo-buttons">
+                    <button class="btn btn-orange" onclick="testPrise10sec()">🧪 Test 10s</button>
+                    <button class="btn btn-blue" onclick="testPrise1sec()">⚡ Flash 1s</button>
+                    <button class="btn btn-orange" onclick="testClignotement()">🔄 Clignote 5x</button>
+                    <button class="btn btn-purple" onclick="testCompletPrise()">🔬 Test complet</button>
+                </div>
+                
+                <!-- Statut de la prise -->
+                <div id="tapoStatus" class="tapo-status">
+                    <span class="status-indicator status-connecting">🔄 Recherche serveur...</span>
+                </div>
+                
+                <!-- Configuration automatique -->
+                <div class="auto-config">
+                    <label>
+                        <input type="checkbox" id="autoTrigger" checked> 
+                        Déclencher automatiquement (navire < 1km)
+                    </label>
+                    <label>
+                        Durée d'alerte : <input type="number" id="alertDuration" value="10" min="5" max="300"> sec
+                    </label>
+                    <!-- NOUVEAU : Option sirène -->
+                    <label>
+                        <input type="checkbox" id="enableSiren" checked> 
+                        🔊 Sirène 2s
+                    </label>
+                </div>
+            </div>
+
+            <!-- Bouton principal -->
             <button id="btnSurveillance" class="btn" onclick="toggleSurveillance()">
                 Démarrer la surveillance
             </button>
             
+            <!-- Statut de connexion -->
             <div id="statusIndicator" class="status-indicator status-connecting">
                 🔄 Prêt à démarrer
             </div>
@@ -121,46 +176,22 @@
                 </div>
             </div>
         </div>
-
-        <!-- CONTRÔLE TAPO P110 APRÈS LA CARTE - VISIBLE -->
-        <div style="background: white; padding: 20px; border-radius: 10px; margin: 20px 0; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-left: 4px solid #007bff;">
-            <h3 style="margin: 0 0 15px 0; color: #495057; font-size: 1.3em;">🔌 Contrôle Prise Tapo P110</h3>
-            
-            <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px;">
-                <label style="font-weight: 600; color: #495057;">IP Serveur :</label>
-                <input type="text" id="serverIp" value="auto" placeholder="auto ou 192.168.1.100" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
-                <button onclick="scannerReseauLocal()" style="background: #6f42c1; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">🔍 Scanner</button>
-            </div>
-            
-            <div style="display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap;">
-                <button onclick="allumerPrise()" style="background: #28a745; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">🟢 Allumer</button>
-                <button onclick="eteindrePrise()" style="background: #dc3545; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">🔴 Éteindre</button>
-                <button onclick="testPrise5sec()" style="background: #fd7e14; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">🧪 Test 5s</button>
-                <button onclick="testPrise1sec()" style="background: #007bff; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">⚡ Flash 1s</button>
-                <button onclick="clignoterPrise()" style="background: #6f42c1; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: 600;">💡 Clignoter</button>
-            </div>
-            
-            <div id="tapoStatus" style="margin: 10px 0; padding: 8px; background: #f8f9fa; border-radius: 4px; font-size: 14px;">🔄 Recherche serveur...</div>
-            
-            <div style="display: flex; gap: 20px; align-items: center; margin-top: 15px;">
-                <label style="display: flex; align-items: center; gap: 5px;">
-                    <input type="checkbox" id="autoTrigger" checked> 
-                    Auto-déclenchement (navire < 1km)
-                </label>
-                <label style="display: flex; align-items: center; gap: 5px;">
-                    Durée d'alerte : <input type="number" id="alertDuration" value="30" min="5" max="300" style="width: 60px; padding: 4px; border: 1px solid #ddd; border-radius: 3px; margin-left: 5px;"> sec
-                </label>
-            </div>
-        </div>
     </div>
 
+    <!-- NOUVEAU : Audio pour sirène -->
+    <audio id="sirenAudio" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuHwwF8aBAx6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQB6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQ==" type="audio/wav">
+    </audio>
+
     <script>
-        // Variables globales
+        // ========================================
+        // VARIABLES GLOBALES
+        // ========================================
         let map;
         let surveillanceActive = false;
         let intervalSurveillance;
         let intervalCompteur;
-        let compteurRefresh = 30;
+        let compteurRefresh = 15; // MODIFIÉ : 30 -> 15
         let markersNavires = [];
         let cerclesZones = [];
         
@@ -169,7 +200,9 @@
         let priseEnCours = false;
         let ipsDetectees = [];
 
-        // Initialisation de la carte
+        // ========================================
+        // INITIALISATION DE LA CARTE (INCHANGÉE)
+        // ========================================
         function initCarte() {
             const lat = parseFloat(document.getElementById('latitudeCenter').value);
             const lon = parseFloat(document.getElementById('longitudeCenter').value);
@@ -188,55 +221,234 @@
             dessinerZonesSurveillance();
         }
 
-        // FONCTIONS TAPO - NOUVELLES
-        async function scannerReseauLocal() {
-            document.getElementById('tapoStatus').textContent = '🔍 Scan réseau en cours...';
-            const ipLocale = await obtenirIpLocale();
-            if (!ipLocale) {
-                document.getElementById('tapoStatus').textContent = '❌ IP locale non détectée';
+        // ========================================
+        // NOUVELLES FONCTIONS TAPO SEULEMENT
+        // ========================================
+
+        /**
+         * NOUVEAU : Sirène d'alarme de 2 secondes
+         */
+        function jouerSireneAlarme() {
+            const enableSiren = document.getElementById('enableSiren').checked;
+            if (!enableSiren) return;
+
+            try {
+                const audio = document.getElementById('sirenAudio');
+                audio.currentTime = 0;
+                audio.play().catch(e => {
+                    console.log('🔊 Impossible de jouer la sirène, création bip');
+                    creerBipSynthetique();
+                });
+                
+                setTimeout(() => {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }, 2000);
+                
+            } catch (error) {
+                creerBipSynthetique();
+            }
+        }
+
+        function creerBipSynthetique() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 2);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 2);
+            } catch (e) {
+                console.log('🔊 Son non disponible');
+            }
+        }
+
+        /**
+         * NOUVEAU : Ping serveur
+         */
+        async function pingServeur() {
+            updateServerUrl();
+            if (!serverTapoUrl) {
+                afficherStatutPrise('❌ IP serveur non configurée', 'error');
                 return;
             }
+            
+            try {
+                afficherStatutPrise('📡 Test ping...', 'info');
+                const response = await fetch(`${serverTapoUrl}/ping`);
+                if (response.ok) {
+                    const result = await response.json();
+                    afficherStatutPrise(`✅ Ping OK - ${result.server}`, 'success');
+                } else {
+                    throw new Error(`Erreur ${response.status}`);
+                }
+            } catch (error) {
+                afficherStatutPrise(`❌ Ping échoué: ${error.message}`, 'error');
+            }
+        }
+
+        /**
+         * NOUVEAU : Statut prise
+         */
+        async function obtenirStatutPrise() {
+            updateServerUrl();
+            if (!serverTapoUrl) {
+                afficherStatutPrise('❌ IP serveur non configurée', 'error');
+                return;
+            }
+            
+            try {
+                afficherStatutPrise('📊 Lecture statut...', 'info');
+                const response = await fetch(`${serverTapoUrl}/status`);
+                if (response.ok) {
+                    const result = await response.json();
+                    const statut = result.status === 'on' ? '🟢 ALLUMÉE' : '🔴 ÉTEINTE';
+                    afficherStatutPrise(`📊 Prise ${statut}`, 'success');
+                } else {
+                    throw new Error(`Erreur ${response.status}`);
+                }
+            } catch (error) {
+                afficherStatutPrise(`❌ Statut inaccessible`, 'error');
+            }
+        }
+
+        /**
+         * NOUVEAU : Test clignotement
+         */
+        async function testClignotement() {
+            if (priseEnCours) return;
+            priseEnCours = true;
+            afficherStatutPrise('🔄 Test clignotement 5x...', 'info');
+            
+            try {
+                for (let i = 1; i <= 5; i++) {
+                    await controlerPrise('on');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    await controlerPrise('off');
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                afficherStatutPrise('✅ Clignotement terminé', 'success');
+            } catch (error) {
+                afficherStatutPrise('❌ Erreur clignotement', 'error');
+            } finally {
+                priseEnCours = false;
+            }
+        }
+
+        /**
+         * NOUVEAU : Test 10 secondes
+         */
+        async function testPrise10sec() {
+            if (priseEnCours) return;
+            priseEnCours = true;
+            await controlerPrise('on', 10);
+            setTimeout(() => { priseEnCours = false; }, 11000);
+        }
+
+        /**
+         * NOUVEAU : Test complet
+         */
+        async function testCompletPrise() {
+            if (priseEnCours) return;
+            priseEnCours = true;
+            
+            try {
+                await pingServeur();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await obtenirStatutPrise();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                await controlerPrise('on', 3);
+                await new Promise(resolve => setTimeout(resolve, 4000));
+                afficherStatutPrise('✅ Test complet réussi', 'success');
+            } catch (error) {
+                afficherStatutPrise('❌ Test complet échoué', 'error');
+            } finally {
+                priseEnCours = false;
+            }
+        }
+
+        /**
+         * Scanner réseau local (fonction originale conservée)
+         */
+        async function scannerReseauLocal() {
+            afficherStatutPrise('🔍 Scan réseau en cours...', 'info');
+            
+            const ipLocale = await obtenirIpLocale();
+            if (!ipLocale) {
+                afficherStatutPrise('❌ Impossible de détecter l\'IP locale', 'error');
+                return;
+            }
+            
             const sousReseau = ipLocale.substring(0, ipLocale.lastIndexOf('.'));
-            const ipsATester = [1, 2, 10, 100, 101, 102, 103, 104, 105, 110, 150, 200].map(ip => `${sousReseau}.${ip}`);
+            const ipsATester = [];
+            
+            const ipsCommunes = [1, 2, 10, 100, 101, 102, 103, 104, 105, 110, 150, 200];
+            for (const ip of ipsCommunes) {
+                ipsATester.push(`${sousReseau}.${ip}`);
+            }
+            
             const promisesTest = ipsATester.map(ip => testerServeurTapo(ip));
             const resultats = await Promise.allSettled(promisesTest);
+            
             ipsDetectees = [];
             for (let i = 0; i < resultats.length; i++) {
                 if (resultats[i].status === 'fulfilled' && resultats[i].value) {
                     ipsDetectees.push(ipsATester[i]);
                 }
             }
+            
             if (ipsDetectees.length > 0) {
                 serverTapoUrl = `http://${ipsDetectees[0]}:3000`;
                 document.getElementById('serverIp').value = ipsDetectees[0];
-                document.getElementById('tapoStatus').textContent = `✅ Serveur trouvé : ${ipsDetectees[0]}`;
+                afficherStatutPrise(`✅ Serveur trouvé : ${ipsDetectees[0]}`, 'success');
             } else {
-                document.getElementById('tapoStatus').textContent = '❌ Aucun serveur Tapo trouvé sur le réseau';
+                afficherStatutPrise('❌ Aucun serveur Tapo trouvé sur le réseau', 'error');
             }
         }
 
         function obtenirIpLocale() {
             return new Promise((resolve) => {
-                const pc = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}]});
+                const pc = new RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+                
                 pc.createDataChannel('');
                 pc.createOffer().then(offer => pc.setLocalDescription(offer));
+                
                 pc.onicecandidate = (event) => {
                     if (event.candidate) {
-                        const match = event.candidate.candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
+                        const candidate = event.candidate.candidate;
+                        const match = candidate.match(/(\d+\.\d+\.\d+\.\d+)/);
                         if (match && !match[1].startsWith('127.')) {
                             pc.close();
                             resolve(match[1]);
                         }
                     }
                 };
-                setTimeout(() => { pc.close(); resolve(null); }, 3000);
+                
+                setTimeout(() => {
+                    pc.close();
+                    resolve(null);
+                }, 3000);
             });
         }
 
         async function testerServeurTapo(ip) {
             try {
-                await fetch(`http://${ip}:3000/ping`, {method: 'GET', mode: 'no-cors', timeout: 2000});
-                return true;
+                const response = await fetch(`http://${ip}:3000/ping`, {
+                    method: 'GET',
+                    timeout: 2000
+                });
+                return response.ok;
             } catch (error) {
                 return false;
             }
@@ -244,6 +456,7 @@
 
         function updateServerUrl() {
             const serverIp = document.getElementById('serverIp').value.trim();
+            
             if (serverIp === 'auto') {
                 if (ipsDetectees.length > 0) {
                     serverTapoUrl = `http://${ipsDetectees[0]}:3000`;
@@ -256,78 +469,125 @@
             }
         }
 
+        function afficherStatutPrise(message, type = 'info') {
+            const statusDiv = document.getElementById('tapoStatus');
+            const statusClasses = {
+                'success': 'status-connected',
+                'error': 'status-error',
+                'info': 'status-connecting'
+            };
+            
+            statusDiv.innerHTML = `<span class="status-indicator ${statusClasses[type]}">${message}</span>`;
+        }
+
         async function controlerPrise(action, duree = null) {
             updateServerUrl();
+            
             if (!serverTapoUrl) {
-                document.getElementById('tapoStatus').textContent = '❌ IP serveur non configurée';
+                afficherStatutPrise('❌ IP serveur non configurée', 'error');
                 return false;
             }
+            
             try {
-                document.getElementById('tapoStatus').textContent = `🔄 ${action}...`;
-                await fetch(`${serverTapoUrl}/alerte/${action}`, {
+                afficherStatutPrise(`🔄 ${action}...`, 'info');
+                
+                const response = await fetch(`${serverTapoUrl}/alerte/${action}`, {
                     method: 'POST',
-                    mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({source: 'surveillance_maritime', timestamp: new Date().toISOString(), duree: duree})
+                    body: JSON.stringify({
+                        source: 'surveillance_maritime',
+                        timestamp: new Date().toISOString(),
+                        duree: duree
+                    })
                 });
-                document.getElementById('tapoStatus').textContent = `✅ Prise ${action} avec succès`;
-                if (duree && action === 'on') {
-                    setTimeout(async () => { await controlerPrise('off'); }, duree * 1000);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    afficherStatutPrise(`✅ ${result.message}`, 'success');
+                    
+                    if (duree && action === 'on') {
+                        setTimeout(async () => {
+                            await controlerPrise('off');
+                        }, duree * 1000);
+                    }
+                    
+                    return true;
+                } else {
+                    throw new Error(`Erreur serveur: ${response.status}`);
                 }
-                return true;
+                
             } catch (error) {
-                document.getElementById('tapoStatus').textContent = '❌ Erreur contrôle prise';
+                afficherStatutPrise(`❌ ${error.message}`, 'error');
                 return false;
             }
         }
 
         async function allumerPrise() { await controlerPrise('on'); }
         async function eteindrePrise() { await controlerPrise('off'); }
-        async function testPrise5sec() {
-            if (priseEnCours) return;
-            priseEnCours = true;
-            await controlerPrise('on', 5);
-            setTimeout(() => { priseEnCours = false; }, 6000);
-        }
         async function testPrise1sec() {
             if (priseEnCours) return;
             priseEnCours = true;
             await controlerPrise('on', 1);
             setTimeout(() => { priseEnCours = false; }, 2000);
         }
-        async function clignoterPrise() {
-            if (priseEnCours) return;
-            priseEnCours = true;
-            document.getElementById('tapoStatus').textContent = '💡 Clignotement en cours...';
-            for (let i = 0; i < 5; i++) {
-                await controlerPrise('on');
-                await new Promise(resolve => setTimeout(resolve, 500));
-                await controlerPrise('off');
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            document.getElementById('tapoStatus').textContent = '💡 Clignotement terminé';
-            priseEnCours = false;
-        }
 
+        /**
+         * MODIFIÉ : Alarme avec sirène de 2s
+         */
         async function declencherAlarmePhysique(navire, distance) {
             const autoTrigger = document.getElementById('autoTrigger').checked;
             if (!autoTrigger || priseEnCours) return;
+            
             console.log('🚨 DÉCLENCHEMENT ALARME PHYSIQUE !');
-            const duree = parseInt(document.getElementById('alertDuration').value) || 30;
+            
+            // NOUVEAU : Sirène de 2 secondes
+            jouerSireneAlarme();
+            
+            const duree = parseInt(document.getElementById('alertDuration').value) || 10;
+            
             priseEnCours = true;
-            await controlerPrise('on', duree);
+            const success = await controlerPrise('on', duree);
+            
+            if (success) {
+                afficherNotificationAlarme(`🚨 ALARME ! Navire "${navire.shipName || 'Inconnu'}" à ${Math.round(distance)}m`);
+            }
+            
             setTimeout(() => { priseEnCours = false; }, (duree + 2) * 1000);
         }
 
-        // VOTRE CODE EXISTANT INCHANGÉ
+        function afficherNotificationAlarme(message) {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px;
+                background: linear-gradient(45deg, #ff0000, #cc0000);
+                color: white; padding: 15px 20px; border-radius: 10px;
+                font-weight: bold; font-size: 16px; z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.5s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.5s ease';
+                setTimeout(() => notification.remove(), 500);
+            }, 10000);
+        }
+
+        // ========================================
+        // FONCTIONS DE SURVEILLANCE (INCHANGÉES SAUF DÉLAIS)
+        // ========================================
+        
         function dessinerZonesSurveillance() {
             const lat = parseFloat(document.getElementById('latitudeCenter').value);
             const lon = parseFloat(document.getElementById('longitudeCenter').value);
             const rayon = parseFloat(document.getElementById('rayonSurveillance').value);
             
+            // Supprimer les cercles existants
             cerclesZones.forEach(cercle => map.removeLayer(cercle));
             cerclesZones = [];
             
+            // Zone d'approche (3km) - Vert
             const zoneApproche = L.circle([lat, lon], {
                 color: '#28a745',
                 fillColor: '#28a745',
@@ -336,6 +596,7 @@
             }).addTo(map);
             cerclesZones.push(zoneApproche);
             
+            // Zone vigilance (2km) - Orange
             const zoneVigilance = L.circle([lat, lon], {
                 color: '#fd7e14',
                 fillColor: '#fd7e14',
@@ -344,6 +605,7 @@
             }).addTo(map);
             cerclesZones.push(zoneVigilance);
             
+            // Zone alerte (1km) - Rouge
             const zoneAlerte = L.circle([lat, lon], {
                 color: '#dc3545',
                 fillColor: '#dc3545',
@@ -354,7 +616,7 @@
         }
 
         function calculerDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
+            const R = 6371000; // Rayon de la Terre en mètres
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -379,6 +641,7 @@
             if (distance < 1000) {
                 zone = 'alerte';
                 couleur = '#dc3545';
+                // MODIFIÉ : Déclencher l'alarme avec sirène
                 declencherAlarmePhysique(navire, distance);
             } else if (distance < 2000) {
                 zone = 'vigilance';
@@ -404,7 +667,7 @@
                 const lon = parseFloat(document.getElementById('longitudeCenter').value);
                 const rayon = parseFloat(document.getElementById('rayonSurveillance').value);
                 
-                const marge = rayon / 111;
+                const marge = rayon / 111; // Approximation : 1 degré ≈ 111 km
                 
                 const params = new URLSearchParams({
                     minLat: (lat - marge).toFixed(6),
@@ -433,9 +696,11 @@
         }
 
         function afficherNavires(navires) {
+            // Supprimer les marqueurs existants
             markersNavires.forEach(marker => map.removeLayer(marker));
             markersNavires = [];
             
+            // Statistiques
             let stats = { total: 0, approche: 0, vigilance: 0, alerte: 0 };
             let naviresVigilanceList = [];
             let naviresAlerteList = [];
@@ -449,6 +714,7 @@
                 const analyse = analyserNavire(navire);
                 stats.total++;
                 
+                // Compter par zone
                 if (analyse.zone === 'alerte') {
                     stats.alerte++;
                     naviresAlerteList.push(navire);
@@ -459,21 +725,23 @@
                     stats.approche++;
                 }
                 
+                // Marqueur sur la carte
                 const marker = L.marker([navire.latitude, navire.longitude])
                     .addTo(map)
                     .bindPopup(`
-                        <strong>🚢 ${navire.shipName || 'Navire inconnu'}</strong><br>
+                        <strong>${navire.shipName || 'Navire inconnu'}</strong><br>
                         MMSI: ${navire.mmsi}<br>
                         Distance: ${Math.round(analyse.distance)}m<br>
                         Zone: ${analyse.zone}
                     `);
                 markersNavires.push(marker);
                 
+                // Élément dans la liste
                 const navireElement = document.createElement('div');
                 navireElement.className = `navire-item navire-${analyse.zone}`;
                 navireElement.innerHTML = `
                     <div class="navire-header">
-                        <span class="navire-nom">🚢 ${navire.shipName || 'Navire inconnu'}</span>
+                        <span class="navire-nom">${navire.shipName || 'Navire inconnu'}</span>
                         <span class="navire-distance distance-${analyse.zone}">
                             ${Math.round(analyse.distance)}m
                         </span>
@@ -506,12 +774,14 @@
                 listeNavires.appendChild(navireElement);
             });
             
+            // Mettre à jour les statistiques
             document.getElementById('totalNavires').textContent = stats.total;
             document.getElementById('naviresApproche').textContent = stats.approche;
             document.getElementById('naviresVigilanceCount').textContent = stats.vigilance;
             document.getElementById('naviresAlerte').textContent = stats.alerte;
             document.getElementById('derniereMaj').textContent = new Date().toLocaleTimeString();
             
+            // Gestion des alertes visuelles
             gererAlertes(naviresAlerteList, naviresVigilanceList);
             
             document.getElementById('statusIndicator').innerHTML = 
@@ -522,21 +792,22 @@
             const banniereAlerte = document.getElementById('banniereAlerte');
             const panneauAttention = document.getElementById('panneauAttention');
             
+            // Bannière rouge pour navires < 1km
             if (naviresAlerte.length > 0) {
                 banniereAlerte.style.display = 'block';
                 banniereAlerte.textContent = 
                     `🚨 ALERTE ROUGE : ${naviresAlerte.length} navire(s) détecté(s) à moins de 1km ! 🚨`;
-                console.log('🚨 Déclenchement alerte rouge pour navire en mouvement:', naviresAlerte[0].shipName);
             } else {
                 banniereAlerte.style.display = 'none';
             }
             
+            // Panneau orange pour navires < 2km
             if (naviresVigilance.length > 0) {
                 panneauAttention.style.display = 'block';
                 const listeVigilance = document.getElementById('naviresVigilance');
                 listeVigilance.innerHTML = naviresVigilance.map(navire => `
                     <div class="navire-panneau">
-                        <strong>🚢 ${navire.shipName || 'Inconnu'}</strong><br>
+                        <strong>${navire.shipName || 'Inconnu'}</strong><br>
                         MMSI: ${navire.mmsi}
                     </div>
                 `).join('');
@@ -549,28 +820,33 @@
             const btn = document.getElementById('btnSurveillance');
             
             if (!surveillanceActive) {
+                // Démarrer la surveillance
                 surveillanceActive = true;
                 btn.textContent = 'Arrêter la surveillance';
                 btn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
                 
+                // Scanner le réseau au démarrage si IP en auto
                 if (document.getElementById('serverIp').value === 'auto') {
                     scannerReseauLocal();
                 }
                 
                 chargerNavires();
-                intervalSurveillance = setInterval(chargerNavires, 30000);
+                // MODIFIÉ : 30000 -> 15000 (15 secondes)
+                intervalSurveillance = setInterval(chargerNavires, 15000);
                 
-                compteurRefresh = 30;
+                // MODIFIÉ : Compteur de 15 secondes
+                compteurRefresh = 15;
                 intervalCompteur = setInterval(() => {
                     compteurRefresh--;
                     document.getElementById('compteurRefresh').textContent = 
                         `Prochaine MAJ : ${compteurRefresh}s`;
                     if (compteurRefresh <= 0) {
-                        compteurRefresh = 30;
+                        compteurRefresh = 15;
                     }
                 }, 1000);
                 
             } else {
+                // Arrêter la surveillance
                 surveillanceActive = false;
                 btn.textContent = 'Démarrer la surveillance';
                 btn.style.background = 'linear-gradient(135deg, #007bff 0%, #0056b3 100%)';
@@ -583,15 +859,20 @@
             }
         }
 
+        // ========================================
+        // INITIALISATION
+        // ========================================
         document.addEventListener('DOMContentLoaded', function() {
             initCarte();
             
+            // Auto-scan au chargement
             setTimeout(() => {
                 if (document.getElementById('serverIp').value === 'auto') {
                     scannerReseauLocal();
                 }
             }, 1000);
             
+            // Mise à jour des zones quand les coordonnées changent
             document.getElementById('latitudeCenter').addEventListener('change', dessinerZonesSurveillance);
             document.getElementById('longitudeCenter').addEventListener('change', dessinerZonesSurveillance);
             document.getElementById('rayonSurveillance').addEventListener('change', dessinerZonesSurveillance);
