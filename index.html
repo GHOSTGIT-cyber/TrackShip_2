@@ -453,9 +453,19 @@
             });
         }
 
+        // MODIFIER cette fonction
         async function testerServeurTapo(ip) {
             try {
-                const response = await fetch(`http://${ip}:3000/ping`, {
+                let url;
+                if (ip.includes('ngrok')) {
+                    // Ngrok : HTTPS sans port
+                    url = `https://${ip}/ping`;
+                } else {
+                    // IP locale : HTTP avec port
+                    url = `http://${ip}:3000/ping`;
+                }
+                
+                const response = await fetch(url, {
                     method: 'GET',
                     timeout: 2000
                 });
@@ -465,6 +475,7 @@
             }
         }
 
+        // REMPLACER COMPLÈTEMENT cette fonction
         function updateServerUrl() {
             const serverIp = document.getElementById('serverIp').value.trim();
             
@@ -476,8 +487,20 @@
                     return;
                 }
             } else if (serverIp) {
-                serverTapoUrl = `http://${serverIp}:3000`;
+                // NOUVEAU : Détecter si c'est une URL Ngrok
+                if (serverIp.includes('ngrok')) {
+                    // Pour Ngrok : HTTPS et PAS de port
+                    serverTapoUrl = `https://${serverIp}`;
+                } else if (serverIp.startsWith('http')) {
+                    // URL complète déjà fournie
+                    serverTapoUrl = serverIp;
+                } else {
+                    // IP locale : HTTP avec port 3000
+                    serverTapoUrl = `http://${serverIp}:3000`;
+                }
             }
+            
+            console.log('🔧 URL serveur Tapo:', serverTapoUrl);
         }
 
         function afficherStatutPrise(message, type = 'info') {
