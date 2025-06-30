@@ -18,7 +18,8 @@ X-XSS-Protection = "1; mode=block"
 X-Content-Type-Options = "nosniff"
 Referrer-Policy = "strict-origin-when-cross-origin"
 # CSP MODIFIÉE pour autoriser les connexions locales
-Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' unpkg.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' unpkg.com; img-src 'self' data: *.openstreetmap.org *.tile.openstreetmap.org; connect-src 'self' *.eurisportal.eu http://localhost:* http://127.0.0.1:* http://192.168.*:* http://10.*:* http://172.16.*:* http://82.64.82.*:*; font-src 'self' data:;"
+Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' unpkg.com cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' unpkg.com; img-src 'self' data: *.openstreetmap.org *.tile.openstreetmap.org unpkg.com; connect-src 'self' *.eurisportal.eu http: https: ws: wss:; font-src 'self' data:;"
+
 
 # Headers spécifiques pour les fonctions Netlify
 [[headers]]
@@ -69,3 +70,4 @@ targetPort = 8888
 port = 8888
 publish = "."
 autoLaunch = true
+
