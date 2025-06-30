@@ -376,25 +376,36 @@
             }
         }
 
-        /**
-         * Scanner réseau local (fonction originale conservée)
-         */
+        // REMPLACER COMPLÈTEMENT la fonction scannerReseauLocal()
         async function scannerReseauLocal() {
             afficherStatutPrise('🔍 Scan réseau en cours...', 'info');
             
-            const ipLocale = await obtenirIpLocale();
-            if (!ipLocale) {
-                afficherStatutPrise('❌ Impossible de détecter l\'IP locale', 'error');
+            // Récupérer l'IP saisie par l'utilisateur
+            const serverIp = document.getElementById('serverIp').value.trim();
+            
+            if (serverIp !== 'auto') {
+                // Test direct de l'IP saisie
+                console.log('🔍 Test IP saisie:', serverIp);
+                const success = await testerServeurTapo(serverIp);
+                
+                if (success) {
+                    serverTapoUrl = `http://${serverIp}:3000`;
+                    ipsDetectees = [serverIp];
+                    afficherStatutPrise(`✅ Serveur trouvé : ${serverIp}`, 'success');
+                } else {
+                    afficherStatutPrise(`❌ Serveur non trouvé sur ${serverIp}`, 'error');
+                }
                 return;
             }
             
-            const sousReseau = ipLocale.substring(0, ipLocale.lastIndexOf('.'));
-            const ipsATester = [];
+            // Si "auto", scanner les IPs locales communes
+            const ipsATester = [
+                '192.168.1.100', '192.168.1.101', '192.168.1.102',
+                '192.168.0.100', '192.168.0.101', '192.168.0.102',
+                '10.0.0.100', '10.0.0.101'
+            ];
             
-            const ipsCommunes = [1, 2, 10, 100, 101, 102, 103, 104, 105, 110, 150, 200];
-            for (const ip of ipsCommunes) {
-                ipsATester.push(`${sousReseau}.${ip}`);
-            }
+            console.log('🔍 Test IPs locales:', ipsATester);
             
             const promisesTest = ipsATester.map(ip => testerServeurTapo(ip));
             const resultats = await Promise.allSettled(promisesTest);
@@ -411,7 +422,7 @@
                 document.getElementById('serverIp').value = ipsDetectees[0];
                 afficherStatutPrise(`✅ Serveur trouvé : ${ipsDetectees[0]}`, 'success');
             } else {
-                afficherStatutPrise('❌ Aucun serveur Tapo trouvé sur le réseau', 'error');
+                afficherStatutPrise('❌ Aucun serveur Tapo trouvé', 'error');
             }
         }
 
