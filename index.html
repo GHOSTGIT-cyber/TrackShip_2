@@ -491,7 +491,10 @@
             try {
                 afficherStatutPrise(`🔄 ${action}...`, 'info');
                 
-                const response = await fetch(`${serverTapoUrl}/alerte/${action}`, {
+                // FORCER HTTPS pour compatibilité avec site Netlify HTTPS
+                const httpsUrl = serverTapoUrl.replace('http:', 'https:');
+                
+                const response = await fetch(`${httpsUrl}/alerte/${action}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -521,6 +524,7 @@
                 return false;
             }
         }
+
 
         async function allumerPrise() { await controlerPrise('on'); }
         async function eteindrePrise() { await controlerPrise('off'); }
