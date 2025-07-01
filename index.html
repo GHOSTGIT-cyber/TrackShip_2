@@ -222,6 +222,8 @@
             L.marker([lat, lon], {icon: logoIcon}).addTo(map)
                 .bindPopup('🏢 Votre Base - Position de surveillance')
                 .openPopup()
+
+            dessinerZonesSurveillance();
         }
 
         // ========================================
@@ -622,36 +624,35 @@
         function dessinerZonesSurveillance() {
             const lat = parseFloat(document.getElementById('latitudeCenter').value);
             const lon = parseFloat(document.getElementById('longitudeCenter').value);
-            const rayon = parseFloat(document.getElementById('rayonSurveillance').value);
             
             // Supprimer les cercles existants
             cerclesZones.forEach(cercle => map.removeLayer(cercle));
             cerclesZones = [];
             
-            // Zone d'approche (3km) - Vert
+            // Zone d'approche (3km) - Vert - TOUJOURS 3km
             const zoneApproche = L.circle([lat, lon], {
                 color: '#28a745',
                 fillColor: '#28a745',
                 fillOpacity: 0.1,
-                radius: Math.min(3000, rayon * 1000)
+                radius: 3000  // FIXE : toujours 3km
             }).addTo(map);
             cerclesZones.push(zoneApproche);
             
-            // Zone vigilance (2km) - Orange
+            // Zone vigilance (2km) - Orange - TOUJOURS 2km
             const zoneVigilance = L.circle([lat, lon], {
                 color: '#fd7e14',
                 fillColor: '#fd7e14',
                 fillOpacity: 0.15,
-                radius: Math.min(2000, rayon * 1000)
+                radius: 2000  // FIXE : toujours 2km
             }).addTo(map);
             cerclesZones.push(zoneVigilance);
             
-            // Zone alerte (1km) - Rouge
+            // Zone alerte (1km) - Rouge - TOUJOURS 1km
             const zoneAlerte = L.circle([lat, lon], {
                 color: '#dc3545',
                 fillColor: '#dc3545',
                 fillOpacity: 0.2,
-                radius: Math.min(1000, rayon * 1000)
+                radius: 1000  // FIXE : toujours 1km
             }).addTo(map);
             cerclesZones.push(zoneAlerte);
         }
@@ -742,9 +743,17 @@
             if (filtre === 'tous') {
                 return navires;
             } else if (filtre === 'mouvement') {
-                return navires.filter(navire => navire.speed && navire.speed > 0.5);
+                // Navires en mouvement : vitesse > 1 nœud
+                return navires.filter(navire => {
+                    const vitesse = parseFloat(navire.speed) || 0;
+                    return vitesse > 1.0;
+                });
             } else if (filtre === 'arrete') {
-                return navires.filter(navire => !navire.speed || navire.speed <= 0.5);
+                // Navires à l'arrêt : vitesse <= 1 nœud
+                return navires.filter(navire => {
+                    const vitesse = parseFloat(navire.speed) || 0;
+                    return vitesse <= 1.0;
+                });
             }
             
             return navires;
@@ -764,7 +773,7 @@
             const listeNavires = document.getElementById('listeNavires');
             listeNavires.innerHTML = '';
             
-            navires.forEach(navire => {
+            naviresFiltrés.forEach(navire => {
                 if (!navire.latitude || !navire.longitude) return;
                 
                 const analyse = analyserNavire(navire);
