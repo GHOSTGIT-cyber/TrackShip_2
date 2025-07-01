@@ -225,9 +225,87 @@
 
             dessinerZonesSurveillance();
         }
+    
 
         // ========================================
         // NOUVELLES FONCTIONS TAPO SEULEMENT
+        // 
+        // 
+        // Initialisation de la carte
+        const map = L.map('map').setView([49.4944, 0.1079], 11);
+
+        // Créer un groupe de couches pour les navires
+        let vesselLayerGroup = L.layerGroup().addTo(map);
+
+        // Ajouter les tuiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+        // Fonction updateVessels
+
+        function updateVessels(vessels) {
+            // Supprimer tous les anciens marqueurs d'un coup
+            vesselLayerGroup.clearLayers();
+            
+            // Vider la liste des navires
+            const vesselList = document.getElementById('vessel-list');
+            vesselList.innerHTML = '';
+            
+            // Réinitialiser les compteurs
+            let approachCount = 0, vigilanceCount = 0, alertCount = 0;
+            
+            if (vessels && vessels.length > 0) {
+                vessels.forEach(vessel => {
+                    // Créer le marqueur
+                    const marker = L.marker([vessel.lat, vessel.lon], {
+                        icon: L.divIcon({
+                            className: 'vessel-marker',
+                            html: `<div class="vessel-icon">🚢</div>`,
+                            iconSize: [30, 30],
+                            iconAnchor: [15, 15]
+                        })
+                    });
+                    
+                    // Ajouter popup
+                    marker.bindPopup(`
+                        <strong>${vessel.name || 'Navire inconnu'}</strong><br>
+                        MMSI: ${vessel.mmsi}<br>
+                        Distance: ${vessel.distance ? vessel.distance.toFixed(2) + ' km' : 'N/A'}
+                    `);
+                    
+                    // Ajouter au groupe (pas directement à la carte)
+                    vesselLayerGroup.addLayer(marker);
+                    
+                    // Compter par zone
+                    if (vessel.distance) {
+                        if (vessel.distance <= 1) alertCount++;
+                        else if (vessel.distance <= 2) vigilanceCount++;
+                        else if (vessel.distance <= 3) approachCount++;
+                    }
+                    
+                    // Ajouter à la liste
+                    const listItem = document.createElement('div');
+                    listItem.className = 'vessel-item';
+                    listItem.innerHTML = `
+                        <strong>${vessel.name || 'Navire inconnu'}</strong><br>
+                        <small>MMSI: ${vessel.mmsi} | Distance: ${vessel.distance ? vessel.distance.toFixed(2) + ' km' : 'N/A'}</small>
+                    `;
+                    vesselList.appendChild(listItem);
+                });
+            } else {
+                vesselList.innerHTML = '<p>Aucun navire détecté</p>';
+            }
+            
+            // Mettre à jour les statistiques
+            document.getElementById('vessel-count').textContent = vessels ? vessels.length : 0;
+            document.getElementById('approach-count').textContent = approachCount;
+            document.getElementById('vigilance-count').textContent = vigilanceCount;
+            document.getElementById('alert-count').textContent = alertCount;
+            document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+        }
+
+        
+
+        // 
         // ========================================
 
         /**
