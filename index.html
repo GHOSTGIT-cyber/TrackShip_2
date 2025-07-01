@@ -125,7 +125,8 @@
                     </label>
                     <label>
                         <input type="checkbox" id="enableSiren" checked> 
-                        🔊 Sirène 2s
+                        🔊 Sirène 
+                        <input type="number" id="sirenDuration" value="10" min="2" max="60"> sec
                     </label>
                 </div>
             </div>
@@ -188,7 +189,7 @@
 
     <!-- Audio pour sirène -->
     <audio id="sirenAudio" preload="auto">
-        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuHwwF8aBAx6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQB6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQ==" type="audio/wav">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuHwwF8aBAx6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQB6zfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBT6HzfTLeFwFJHfH8N2QQAoUXrTp66hVFApGnuDyvmAaBQ==" type="audio/wav">
     </audio>
 
     <script>
@@ -203,7 +204,6 @@
         let markersNavires = [];
         let cerclesZones = [];
         
-       
         // Variables Tapo
         let serverTapoUrl = null;
         let priseEnCours = false;
@@ -236,32 +236,35 @@
         }
 
         // ========================================
-        // FONCTIONS TAPO (INCHANGÉES)
+        // FONCTIONS TAPO (MODIFIÉES)
         // ========================================
         
         function jouerSireneAlarme() {
             const enableSiren = document.getElementById('enableSiren').checked;
             if (!enableSiren) return;
 
+            const dureeSirene = parseInt(document.getElementById('sirenDuration').value) || 10;
+            const dureeMs = dureeSirene * 1000;
+
             try {
                 const audio = document.getElementById('sirenAudio');
                 audio.currentTime = 0;
                 audio.play().catch(e => {
                     console.log('🔊 Impossible de jouer la sirène');
-                    creerBipSynthetique();
+                    creerBipSynthetique(dureeSirene);
                 });
                 
                 setTimeout(() => {
                     audio.pause();
                     audio.currentTime = 0;
-                }, 2000);
+                }, dureeMs);
                 
             } catch (error) {
-                creerBipSynthetique();
+                creerBipSynthetique(dureeSirene);
             }
         }
 
-        function creerBipSynthetique() {
+        function creerBipSynthetique(duree = 10) {
             try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioContext.createOscillator();
@@ -274,10 +277,10 @@
                 oscillator.type = 'sine';
                 
                 gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 2);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duree);
                 
                 oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 2);
+                oscillator.stop(audioContext.currentTime + duree);
             } catch (e) {
                 console.log('🔊 Son non disponible');
             }
@@ -522,22 +525,44 @@
 
         async function declencherAlarmePhysique(navire, distance) {
             const autoTrigger = document.getElementById('autoTrigger').checked;
-            if (!autoTrigger || priseEnCours) return;
+            if (!autoTrigger) return;
             
-            console.log('🚨 DÉCLENCHEMENT ALARME PHYSIQUE !');
+            console.log('🚨 NAVIRE EN ZONE ALERTE !', navire.shipName || 'Inconnu');
             
-            jouerSireneAlarme();
-            
-            const duree = parseInt(document.getElementById('alertDuration').value) || 10;
-            
-            priseEnCours = true;
-            const success = await controlerPrise('on', duree);
-            
-            if (success) {
+            // Jouer la sirène seulement au premier déclenchement
+            if (!priseAllumeeAlarme) {
+                jouerSireneAlarme();
                 afficherNotificationAlarme(`🚨 ALARME ! Navire "${navire.shipName || 'Inconnu'}" à ${Math.round(distance)}m`);
             }
+        }
+
+        async function gererEtatPriseAlarme(naviresAlerte) {
+            const autoTrigger = document.getElementById('autoTrigger').checked;
+            if (!autoTrigger) return;
+
+            const aDesNaviresEnAlerte = naviresAlerte.length > 0;
             
-            setTimeout(() => { priseEnCours = false; }, (duree + 2) * 1000);
+            // Si il y a des navires en alerte et la prise n'est pas allumée
+            if (aDesNaviresEnAlerte && !priseAllumeeAlarme) {
+                console.log('🚨 ALLUMAGE PRISE - Navires en zone critique');
+                const success = await controlerPrise('on');
+                if (success) {
+                    priseAllumeeAlarme = true;
+                    afficherStatutPrise('🚨 ALARME ACTIVE - Prise allumée', 'error');
+                }
+            }
+            // Si il n'y a plus de navires en alerte et la prise est allumée
+            else if (!aDesNaviresEnAlerte && priseAllumeeAlarme) {
+                console.log('✅ EXTINCTION PRISE - Zone sécurisée');
+                const success = await controlerPrise('off');
+                if (success) {
+                    priseAllumeeAlarme = false;
+                    afficherStatutPrise('✅ Zone sécurisée - Prise éteinte', 'success');
+                }
+            }
+            
+            // Mettre à jour la liste des navires actifs
+            naviresEnAlerteActifs = [...naviresAlerte];
         }
 
         function afficherNotificationAlarme(message) {
@@ -625,7 +650,12 @@
             if (distance < 1000) {
                 zone = 'alerte';
                 couleur = '#dc3545';
-                declencherAlarmePhysique(navire, distance);
+                
+                // Déclencher alarme seulement pour les nouveaux navires
+                const dejaEnAlerte = naviresEnAlerteActifs.some(n => n.mmsi === navire.mmsi);
+                if (!dejaEnAlerte) {
+                    declencherAlarmePhysique(navire, distance);
+                }
             } else if (distance < 2000) {
                 zone = 'vigilance';
                 couleur = '#fd7e14';
@@ -793,6 +823,9 @@
             // Gestion des alertes
             gererAlertes(naviresAlerteList, naviresVigilanceList);
             
+            // Gérer l'état de la prise en fonction des navires en alerte
+            gererEtatPriseAlarme(naviresAlerteList);
+            
             document.getElementById('statusIndicator').innerHTML = 
                 '<span class="status-indicator status-connected">✅ Surveillance active</span>';
         }
@@ -855,6 +888,13 @@
                 
                 clearInterval(intervalSurveillance);
                 clearInterval(intervalCompteur);
+                
+                // Réinitialiser l'état de la prise
+                if (priseAllumeeAlarme) {
+                    controlerPrise('off');
+                    priseAllumeeAlarme = false;
+                }
+                naviresEnAlerteActifs = [];
                 
                 document.getElementById('statusIndicator').innerHTML = 
                     '<span class="status-indicator status-connecting">🔄 Surveillance arrêtée</span>';
