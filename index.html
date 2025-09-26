@@ -152,26 +152,51 @@
     let timer = null;
     let alerteActive = false;
 
-    // ================= APPELS TAPO =================
-    async function tapoAction(action, dureeSec) {
-      const base = el.tapoUrl.value.trim();
-      if (!base) {
-        log('⚠️ URL serveur Tapo vide');
-        return;
-      }
-      try {
-        // Route attendue côté serveur Tapo: POST /alerte {action:'on'|'off', duree?:seconds}
-        const res = await fetch(`${base.replace(/\\/$/, '')}/alerte`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify(dureeSec ? { action, duree: Number(dureeSec) } : { action })
-        });
-        const text = await res.text();
-        log(`Tapo ${action} → ${res.status} ${text}`);
-      } catch (e) {
-        log('Erreur Tapo: ' + e.message);
-      }
+   // Appel backend Tapo côté site (Hostinger)
+    async function tapoApi(action, dureeSec) {
+    const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
+    const res = await fetch('/api/tapo.php', {
+        method: 'POST',
+        headers: {
+        'Content-Type': 'application/json',
+        // Optionnel si vous activez APP_API_KEY côté serveur:
+        // 'X-API-Key': 'VOTRE_CLE_FRONT_MINIMALE'
+        },
+        body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `Erreur HTTP ${res.status}`);
     }
+    return data;
+    }
+
+    // Boutons de test
+    async function testPrise10s() {
+    try {
+        const r = await tapoApi('on', 10);
+        console.log(r.message || 'Allumée 10s');
+    } catch (e) {
+        console.error('Test échoué:', e.message);
+    }
+    }
+    async function allumerPrise() {
+    try { await tapoApi('on'); } catch (e) { console.error(e.message); }
+    }
+    async function eteindrePrise() {
+    try { await tapoApi('off'); } catch (e) { console.error(e.message); }
+    }
+
+    // Déclenchement auto sur alerte
+    async function onAlerteActiveChanged(active) {
+    try {
+        if (active) await tapoApi('on');
+        else await tapoApi('off');
+    } catch (e) {
+        console.error('Commande Tapo échouée:', e.message);
+    }
+    }
+
 
     // ================= APPEL EURIS VIA PROXY PHP =================
     async function fetchNavires() {
