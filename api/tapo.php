@@ -57,10 +57,10 @@ if (!in_array($action, ['on', 'off'], true)) {
 }
 
 // Variables d’environnement (configurées dans Hostinger > Avancé > Variables d’environnement)
-$email   = getenv('TAPO_EMAIL') ?: '';
-$pass    = getenv('TAPO_PASSWORD') ?: '';
+$email   = getenv('TAPO_EMAIL') ?: 'bakabi06@gmail.com';
+$pass    = getenv('TAPO_PASSWORD') ?: 'efoilfrance62';
 $deviceId = getenv('TAPO_DEVICE_ID') ?: ''; // id unique de l’appareil (préféré)
-$deviceAlias = getenv('TAPO_DEVICE_ALIAS') ?: ''; // alias si pas d’id
+$deviceAlias = getenv('TAPO_DEVICE_ALIAS') ?: 'Alerte Gyro'; // alias si pas d’id
 $region  = getenv('TAPO_REGION') ?: 'EU'; // ex: EU/US, selon compte
 
 if (!$email || !$pass || (!$deviceId && !$deviceAlias)) {
