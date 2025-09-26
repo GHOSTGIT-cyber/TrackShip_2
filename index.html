@@ -4,21 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Alerte Navire 1km – Tapo</title>
-  <!-- CSS minimal -->
   <style>
-    body { font-family: system-ui,Segoe UI,Roboto,Arial,sans-serif; margin: 0; padding: 16px; background:#f7f7fb; color:#222; }
-    .box { background:#fff; border:1px solid #e6e6ef; border-radius:10px; padding:14px; margin-bottom:14px; }
-    h1 { font-size:20px; margin:4px 0 12px; }
-    label { display:block; font-size:13px; margin:8px 0 4px; }
-    input, select { width:100%; padding:10px; border:1px solid #d3d3e0; border-radius:8px; font-size:14px; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; }
-    .row > div { flex:1; min-width:180px; }
-    button { cursor:pointer; padding:10px 14px; border:0; border-radius:8px; background:#5b6cff; color:#fff; font-weight:600; }
-    button.secondary { background:#e7e8ff; color:#2a2b5a; }
-    .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:13px; white-space:pre-wrap; background:#0f1220; color:#cfe3ff; border-radius:8px; padding:10px; overflow:auto; max-height:200px; }
-    .pill { display:inline-block; padding:4px 8px; border-radius:999px; background:#eef2ff; color:#2a2b5a; font-size:12px; margin-left:6px; }
-    .alert { background:#ffe9ea; color:#9a0414; border-color:#ffc7cc; }
-    .ok { background:#e9fff1; color:#0b6b34; border-color:#b8f0cb; }
+    body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin: 0; padding: 16px; background: #f6f7fb; color: #20223a; }
+    .box { background: #fff; border: 1px solid #e8ebf6; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+    h1 { font-size: 20px; margin: 4px 0 12px; }
+    label { display: block; font-size: 13px; margin: 8px 0 4px; }
+    input { width: 100%; padding: 10px; border: 1px solid #cfd5e6; border-radius: 8px; font-size: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 180px; }
+    button { cursor: pointer; padding: 10px 14px; border: 0; border-radius: 8px; background: #5569ff; color: #fff; font-weight: 600; }
+    button.secondary { background: #e8eaff; color: #29306d; }
+    .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: pre-wrap; background: #f2f4fb; color: #1d1f3f; border-radius: 8px; padding: 10px; overflow: auto; max-height: 180px; }
+    .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #eef2ff; color: #272968; font-size: 12px; margin-left: 6px; }
+    .alert { background: #ffe9ea; color: #9a0414; border-color: #ffc7cc; }
+    .ok { background: #e9fff1; color: #0b6b34; border-color: #b8f0cb; }
   </style>
 </head>
 <body>
@@ -27,8 +26,7 @@
     <div class="row">
       <div>
         <label>Token EuRIS (Bearer)</label>
-        <!-- Laisser vide ici et mettre la valeur à l’hébergement si souhaité -->
-        <input id="eurisToken" type="text" placeholder="collez le token EuRIS ici" />
+        <input id="eurisToken" type="text" placeholder="Collez le token EuRIS ici" />
       </div>
       <div>
         <label>Rayon alerte (m)</label>
@@ -39,7 +37,6 @@
         <input id="periode" type="number" value="20" />
       </div>
     </div>
-
     <div class="row">
       <div>
         <label>Latitude base</label>
@@ -57,20 +54,9 @@
   </div>
 
   <div class="box">
-    <h1>Serveur Tapo</h1>
-    <div class="row">
-      <div>
-        <label>URL serveur local</label>
-        <!-- Exemple: http://192.168.1.50:3000 -->
-        <input id="tapoUrl" type="text" placeholder="http://IP:PORT" />
-      </div>
-      <div>
-        <label>Durée allumage test (s)</label>
-        <input id="dureeTest" type="number" value="10" />
-      </div>
-    </div>
+    <h1>Prise Tapo (Cloud)</h1>
     <div class="row" style="margin-top:10px">
-      <button id="btnTest">Tester la prise (allumer)</button>
+      <button id="btnTest">Tester la prise (allumer 10s)</button>
       <button id="btnOn">Allumer</button>
       <button id="btnOff" class="secondary">Éteindre</button>
     </div>
@@ -79,15 +65,9 @@
   <div class="box" id="boxEtat">
     <h1>État</h1>
     <div class="row">
-      <div>
-        <div id="etatAlerte" class="pill">Alerte: inactif</div>
-      </div>
-      <div>
-        <div id="naviresCompteur" class="pill">Navires proches: 0</div>
-      </div>
-      <div>
-        <div id="derniereMaj" class="pill">Dernière MAJ: jamais</div>
-      </div>
+      <div><div id="etatAlerte" class="pill">Alerte: inactif</div></div>
+      <div><div id="naviresCompteur" class="pill">Navires proches: 0</div></div>
+      <div><div id="derniereMaj" class="pill">Dernière MAJ: jamais</div></div>
     </div>
     <div class="status" id="log"></div>
   </div>
@@ -107,9 +87,9 @@
       logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
     }
 
-    // Distance Haversine en mètres
+    // Distance Haversine (m)
     function distanceMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000; // m
+      const R = 6371000;
       const toRad = d => d * Math.PI / 180;
       const dLat = toRad(lat2 - lat1);
       const dLon = toRad(lon2 - lon1);
@@ -117,9 +97,9 @@
       return 2 * R * Math.asin(Math.sqrt(a));
     }
 
-    // BBox approximative pour réduire la charge API (lat/lon degrés)
+    // BBox en degrés autour du point (approximation)
     function makeBBox(lat, lon, rayonM) {
-      const dLat = (rayonM / 111320); // 1° lat ~ 111.32 km
+      const dLat = (rayonM / 111320);
       const dLon = (rayonM / (111320 * Math.cos(lat * Math.PI/180)));
       return {
         minLat: lat - dLat, maxLat: lat + dLat,
@@ -127,7 +107,7 @@
       };
     }
 
-    // ================= CONFIG RÉFÉRENCES UI =================
+    // ================= RÉFÉRENCES UI =================
     const el = {
       token: document.getElementById('eurisToken'),
       rayon: document.getElementById('rayon'),
@@ -135,8 +115,6 @@
       lat: document.getElementById('latBase'),
       lon: document.getElementById('lonBase'),
       pageSize: document.getElementById('pageSize'),
-      tapoUrl: document.getElementById('tapoUrl'),
-      dureeTest: document.getElementById('dureeTest'),
       btnTest: document.getElementById('btnTest'),
       btnOn: document.getElementById('btnOn'),
       btnOff: document.getElementById('btnOff'),
@@ -148,55 +126,26 @@
       boxEtat: document.getElementById('boxEtat'),
     };
 
-    // ================= ETAT APP =================
     let timer = null;
     let alerteActive = false;
 
-   // Appel backend Tapo côté site (Hostinger)
+    // ================= BACKEND TAPO (Hostinger) =================
+    // Envoie uniquement action/durée au serveur /api/tapo.php, sans exposer d’identifiants Tapo.
     async function tapoApi(action, dureeSec) {
-    const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
-    const res = await fetch('/api/tapo.php', {
-        method: 'POST',
-        headers: {
-        'Content-Type': 'application/json',
-        // Optionnel si vous activez APP_API_KEY côté serveur:
-        // 'X-API-Key': 'VOTRE_CLE_FRONT_MINIMALE'
-        },
-        body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || data.ok === false) {
-        throw new Error(data.error || `Erreur HTTP ${res.status}`);
+      const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
+      try {
+        const res = await fetch('/api/tapo.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) throw new Error(data.error || 'Erreur');
+        log(data.message || ((action === 'on') ? 'Prise allumée' : 'Prise éteinte'));
+      } catch (e) {
+        log('Erreur Tapo: ' + e.message);
+      }
     }
-    return data;
-    }
-
-    // Boutons de test
-    async function testPrise10s() {
-    try {
-        const r = await tapoApi('on', 10);
-        console.log(r.message || 'Allumée 10s');
-    } catch (e) {
-        console.error('Test échoué:', e.message);
-    }
-    }
-    async function allumerPrise() {
-    try { await tapoApi('on'); } catch (e) { console.error(e.message); }
-    }
-    async function eteindrePrise() {
-    try { await tapoApi('off'); } catch (e) { console.error(e.message); }
-    }
-
-    // Déclenchement auto sur alerte
-    async function onAlerteActiveChanged(active) {
-    try {
-        if (active) await tapoApi('on');
-        else await tapoApi('off');
-    } catch (e) {
-        console.error('Commande Tapo échouée:', e.message);
-    }
-    }
-
 
     // ================= APPEL EURIS VIA PROXY PHP =================
     async function fetchNavires() {
@@ -210,14 +159,11 @@
       const rayon = Number(el.rayon.value);
       const pageSize = Number(el.pageSize.value);
 
-      const bbox = makeBBox(lat, lon, Math.max(2000, rayon)); // un peu plus large que 1 km
-      // Appel au proxy local PHP: euris-proxy.php?minLat=...&...
+      const bbox = makeBBox(lat, lon, Math.max(2000, rayon)); // BBox > rayon pour être sûr de capturer
       const url = `./euris-proxy.php?minLat=${bbox.minLat.toFixed(6)}&maxLat=${bbox.maxLat.toFixed(6)}&minLon=${bbox.minLon.toFixed(6)}&maxLon=${bbox.maxLon.toFixed(6)}&pageSize=${pageSize}`;
 
       try {
-        const res = await fetch(url, {
-          headers: { Authorization: 'Bearer ' + token }
-        });
+        const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
         const data = await res.json();
         if (!res.ok) {
           log(`Erreur API: ${res.status} ${data?.message || data?.error || 'inconnu'}`);
@@ -238,8 +184,8 @@
 
       const { tracks = [] } = await fetchNavires();
 
-      // Filtrer par distance exacte
-      let proches = [];
+      // Filtrer par distance exacte au centre
+      const proches = [];
       for (const t of tracks) {
         const nlat = Number(t.latitude ?? t.lat ?? t.Latitude ?? 0);
         const nlon = Number(t.longitude ?? t.lon ?? t.Longitude ?? 0);
@@ -252,27 +198,24 @@
       el.derniereMaj.textContent = 'Dernière MAJ: ' + new Date().toLocaleTimeString();
 
       const enAlerte = proches.length > 0;
-
-      // Transition d’état → commande Tapo
       if (enAlerte && !alerteActive) {
         alerteActive = true;
         el.etatAlerte.textContent = 'Alerte: ACTIVE';
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box alert';
         log(`ALERTE: ${proches.length} navire(s) <= ${rayon} m → allumer`);
-        // Allumer immédiatement (sans durée) ; la durée peut être gérée côté serveur Tapo
-        tapoAction('on');
+        tapoApi('on');
       } else if (!enAlerte && alerteActive) {
         alerteActive = false;
         el.etatAlerte.textContent = 'Alerte: inactif';
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box ok';
         log('FIN ALERTE → éteindre');
-        tapoAction('off');
+        tapoApi('off');
       }
     }
 
-    // ================= CONTROLES UI =================
+    // ================= CONTRÔLES UI =================
     el.btnStart.addEventListener('click', () => {
       if (timer) return;
       log('Surveillance démarrée');
@@ -289,13 +232,9 @@
       }
     });
 
-    el.btnTest.addEventListener('click', () => {
-      const d = Number(el.dureeTest.value || 10);
-      tapoAction('on', d);
-    });
-
-    el.btnOn.addEventListener('click', () => tapoAction('on'));
-    el.btnOff.addEventListener('click', () => tapoAction('off'));
+    el.btnTest.addEventListener('click', () => tapoApi('on', 10));
+    el.btnOn.addEventListener('click', () => tapoApi('on'));
+    el.btnOff.addEventListener('click', () => tapoApi('off'));
   </script>
 </body>
 </html>
