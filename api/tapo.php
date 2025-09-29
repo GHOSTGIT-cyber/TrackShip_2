@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // ==================== CONFIGURATION ====================
 // Variables d'environnement (avec valeurs par défaut pour le développement)
 $DEVICE_IP = getenv('TAPO_DEVICE_IP') ?: '192.168.0.42';
-$TAPO_EMAIL = getenv('TAPO_EMAIL') ?: 'bakabi06@gmail.com';
-$TAPO_PASSWORD = getenv('TAPO_PASSWORD') ?: 'efoilfrance62';
+$TAPO_EMAIL = getenv('TAPO_EMAIL') ?: 'bakari06@live.fr';
+$TAPO_PASSWORD = getenv('TAPO_PASSWORD') ?: 'Prise06200?';
 
 // Lecture des données POST
 $input = file_get_contents('php://input');
