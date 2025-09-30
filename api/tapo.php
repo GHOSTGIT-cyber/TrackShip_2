@@ -39,8 +39,8 @@ if (!in_array($action, ['on', 'off'], true)) {
 }
 
 // Identifiants Tapo
-$email = getenv('TAPO_EMAIL') ?: 'bakabi06@gmail.com';
-$pass = getenv('TAPO_PASSWORD') ?: 'efoilfrance62';
+$email = getenv('TAPO_EMAIL') ?: 'bakari06@live.fr';
+$pass = getenv('TAPO_PASSWORD') ?: 'Alerte06200?';
 $deviceAlias = getenv('TAPO_DEVICE_ALIAS') ?: 'Alerte Gyro';
 
 // Secret hardcodé de l'app Tapo (trouvé par reverse engineering)
