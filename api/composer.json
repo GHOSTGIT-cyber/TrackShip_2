@@ -1,0 +1,14 @@
+{
+    "name": "bakabi/alerte-bateau",
+    "description": "API pour contrôler prise Tapo",
+    "type": "project",
+    "require": {
+        "kuhschnappel/tapo-api": "^2.1"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "7.4"
+        }
+    }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "bakabi/site",
+  "require": {
+    "php": ">=8.0"
+  }
+}
