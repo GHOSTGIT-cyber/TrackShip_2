@@ -1,156 +1,211 @@
 <?php
-/**
- * Proxy EuRIS pour hébergement mutualisé (Hostinger)
- * - Objectif: exposer en GET une boîte EuRIS GetTracksByBBoxV2 avec CORS,
- *   en transmettant le header Authorization: Bearer <TOKEN> reçu du front.
- * - Avantages: masque CORS, garde le token côté client sans l’exposer aux domaines tiers,
- *   simplifie le débogage (statuts et messages normalisés JSON).
- *
- * SÉCURITÉ:
- * - Ce proxy accepte tout origine par défaut (Access-Control-Allow-Origin: *).
- *   Adapter si besoin: remplacer * par https://alerte.bakabi.fr
- */
+// api/euris-proxy.php
+// Backend adapté pour trackship.bakabi.fr avec trackID
 
-// ====== HEADERS CORS ET JSON ======
+header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Cache-Control: no-cache, no-store, must-revalidate');
-header('Pragma: no-cache');
-header('Expires: 0');
 
-// Preflight CORS
+// Gestion preflight CORS
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  http_response_code(200);
-  echo json_encode(['message' => 'CORS preflight OK']);
-  exit;
+    http_response_code(200);
+    exit();
 }
 
-// Limiter aux GET
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-  http_response_code(405);
-  echo json_encode(['error' => 'Méthode non autorisée. Utiliser GET.']);
-  exit;
+// Récupération du token
+$token = null;
+$headers = getallheaders();
+
+if (isset($headers['Authorization']) && strpos($headers['Authorization'], 'Bearer ') === 0) {
+    $token = substr($headers['Authorization'], 7);
+} else {
+    http_response_code(401);
+    exit(json_encode([
+        'error' => 'Authorization header required',
+        'message' => 'Le header Authorization avec un token Bearer est requis'
+    ]));
 }
 
-// ====== RÉCUP DES EN-TÊTES ======
-$headers = function_exists('getallheaders') ? getallheaders() : [];
-$auth = $headers['Authorization'] ?? $headers['authorization'] ?? null;
-if (!$auth || stripos($auth, 'Bearer ') !== 0) {
-  http_response_code(401);
-  echo json_encode([
-    'error' => 'Authorization header required',
-    'message' => 'Header Authorization: Bearer <TOKEN> manquant'
-  ]);
-  exit;
+// Récupération des paramètres
+$minLat = $_GET['minLat'] ?? null;
+$maxLat = $_GET['maxLat'] ?? null;
+$minLon = $_GET['minLon'] ?? null;
+$maxLon = $_GET['maxLon'] ?? null;
+$pageSize = $_GET['pageSize'] ?? 100;
+
+// Validation des paramètres
+if (!$minLat || !$maxLat || !$minLon || !$maxLon) {
+    http_response_code(400);
+    exit(json_encode([
+        'error' => 'Missing required parameters',
+        'required' => ['minLat', 'maxLat', 'minLon', 'maxLon']
+    ]));
 }
 
-// ====== PARAMÈTRES REQUIS ======
-$minLat = isset($_GET['minLat']) ? floatval($_GET['minLat']) : null;
-$maxLat = isset($_GET['maxLat']) ? floatval($_GET['maxLat']) : null;
-$minLon = isset($_GET['minLon']) ? floatval($_GET['minLon']) : null;
-$maxLon = isset($_GET['maxLon']) ? floatval($_GET['maxLon']) : null;
-$pageSize = isset($_GET['pageSize']) ? intval($_GET['pageSize']) : 100;
-
-if ($minLat === null || $maxLat === null || $minLon === null || $maxLon === null) {
-  http_response_code(400);
-  echo json_encode([
-    'error' => 'Missing required parameters',
-    'required' => ['minLat','maxLat','minLon','maxLon']
-  ]);
-  exit;
-}
-
-// ====== CONSTRUCTION DE L’URL EURIS ======
-// Remarque: EuRIS attend 6 décimales sur la bbox.
+// Construction URL EuRIS
 $eurisUrl = sprintf(
-  'https://www.eurisportal.eu/visuris/api/TracksV2/GetTracksByBBoxV2?minLat=%.6f&maxLat=%.6f&minLon=%.6f&maxLon=%.6f&pageSize=%d',
-  $minLat, $maxLat, $minLon, $maxLon, $pageSize
+    'https://www.eurisportal.eu/visuris/api/TracksV2/GetTracksByBBoxV2?minLat=%.6f&maxLat=%.6f&minLon=%.6f&maxLon=%.6f&pageSize=%d',
+    floatval($minLat),
+    floatval($maxLat),
+    floatval($minLon),
+    floatval($maxLon),
+    intval($pageSize)
 );
 
-// ====== APPEL EURIS ======
+// Appel à l'API EuRIS
 $ch = curl_init();
 curl_setopt_array($ch, [
-  CURLOPT_URL => $eurisUrl,
-  CURLOPT_RETURNTRANSFER => true,
-  CURLOPT_TIMEOUT => 25,
-  CURLOPT_FOLLOWLOCATION => true,
-  CURLOPT_HTTPHEADER => [
-    'Accept: application/json',
-    $auth ? 'Authorization: ' . $auth : ''
-  ]
+    CURLOPT_URL => $eurisUrl,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_HTTPHEADER => [
+        'Authorization: Bearer ' . $token,
+        'Accept: application/json',
+        'User-Agent: TrackShip/1.0 (trackship.bakabi.fr)'
+    ]
 ]);
 
-$resp = curl_exec($ch);
-$errno = curl_errno($ch);
-$err  = curl_error($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
 curl_close($ch);
 
-// Erreurs réseau
-if ($errno) {
-  http_response_code(502);
-  echo json_encode([
-    'error' => 'Erreur réseau proxy',
-    'message' => $err,
-    'upstream' => $eurisUrl
-  ]);
-  exit;
+if ($error) {
+    http_response_code(500);
+    exit(json_encode([
+        'error' => 'Erreur de connexion à l\'API EuRIS',
+        'message' => $error
+    ]));
 }
 
-// Passer les erreurs HTTP de manière lisible
-if ($code < 200 || $code >= 300) {
-  http_response_code($code);
-  $msg = @json_decode($resp, true);
-  echo json_encode([
-    'error' => 'Erreur EuRIS',
-    'status' => $code,
-    'message' => $msg['message'] ?? $msg['error'] ?? (is_string($resp) ? $resp : 'inconnu')
-  ]);
-  exit;
+if ($httpCode !== 200) {
+    // Messages d'erreur spécifiques
+    $errorMessages = [
+        401 => 'Token d\'authentification invalide ou expiré',
+        403 => 'Accès interdit - permissions insuffisantes',
+        404 => 'Service EuRIS non trouvé',
+        429 => 'Trop de requêtes - attendez avant de réessayer',
+        500 => 'Service EuRIS temporairement indisponible'
+    ];
+    
+    http_response_code($httpCode);
+    exit(json_encode([
+        'error' => $errorMessages[$httpCode] ?? 'Erreur API EuRIS',
+        'httpStatus' => $httpCode
+    ]));
 }
 
-// ====== NORMALISATION OPTIONNELLE ======
-// Certaines réponses EuRIS incluent des propriétés différentes selon zones/versions.
-// On tente de fournir un tableau "tracks" simple avec latitude/longitude + méta courantes.
-$data = @json_decode($resp, true);
+// Validation JSON
+$data = json_decode($response, true);
+if (json_last_error() !== JSON_ERROR_NONE) {
+    http_response_code(500);
+    exit(json_encode([
+        'error' => 'Réponse invalide de l\'API EuRIS',
+        'message' => json_last_error_msg()
+    ]));
+}
 
-// Si la réponse est déjà un tableau de tracks
+// L'API retourne { "items": [...], "count": N } depuis la mise à jour EuRIS
 $tracks = [];
 if (is_array($data)) {
-  // Deux formats possibles: tableau pur, ou objet { items: [...] }
-  if (isset($data['items']) && is_array($data['items'])) {
-    $source = $data['items'];
-  } else {
-    $source = $data;
-  }
-
-  foreach ($source as $t) {
-    $lat = $t['latitude'] ?? $t['lat'] ?? $t['Latitude'] ?? null;
-    $lon = $t['longitude'] ?? $t['lon'] ?? $t['Longitude'] ?? null;
-    // Garder seulement les points ayant une position
-    if ($lat !== null && $lon !== null) {
-      $tracks[] = [
-        'mmsi'     => $t['mmsi'] ?? $t['MMSI'] ?? null,
-        'shipName' => $t['shipName'] ?? $t['vesselName'] ?? $t['ShipName'] ?? null,
-        'latitude' => (float)$lat,
-        'longitude'=> (float)$lon,
-        'speed'    => $t['speed'] ?? $t['SOG'] ?? null,
-        'course'   => $t['course'] ?? $t['COG'] ?? null,
-        'ts'       => $t['timestamp'] ?? $t['time'] ?? null,
-      ];
+    if (isset($data['items']) && is_array($data['items'])) {
+        $tracks = $data['items'];
+    } elseif (!isset($data['items'])) {
+        // Ancien format : tableau direct
+        $tracks = $data;
     }
-  }
-} else {
-  // Si la réponse n’est pas JSON, renvoyer telle quelle
-  echo $resp;
-  exit;
 }
 
-// ====== SORTIE ======
+// Normalisation des propriétés en utilisant les vrais champs de l'API
+$tracksNormalisees = array_map(function($track) {
+    // Extraction des coordonnées
+    $lat = isset($track['lat']) ? floatval($track['lat']) : null;
+    $lon = isset($track['lon']) ? floatval($track['lon']) : null;
+    
+    // Utilisation de trackID comme identifiant principal
+    $trackId = $track['trackID'] ?? null;
+    
+    // Statut de mouvement basé sur le champ "moving"
+    $enMouvement = isset($track['moving']) ? $track['moving'] : null;
+    
+    // Vitesse (SOG = Speed Over Ground)
+    $vitesse = isset($track['sog']) ? floatval($track['sog']) : null;
+    
+    // Cap (COG = Course Over Ground)
+    $cap = isset($track['cog']) ? floatval($track['cog']) : null;
+    
+    // Dimensions
+    $longueur = isset($track['inlen']) ? floatval($track['inlen']) : null;
+    $largeur = isset($track['inbm']) ? floatval($track['inbm']) : null;
+    
+    // Position fluviale
+    $positionISRS = $track['positionISRS'] ?? null;
+    $positionName = $track['positionISRSName'] ?? null;
+    
+    // Statut (st: 1 = en mouvement, 2 = à l'arrêt)
+    $statut = isset($track['st']) ? intval($track['st']) : null;
+    
+    return [
+        // Identifiants
+        'trackId' => $trackId,
+        'mmsi' => $trackId, // On utilise trackID comme MMSI pour compatibilité frontend
+        'name' => $track['name'] ?? "Track $trackId",
+        'shipName' => $track['name'] ?? "Track $trackId",
+        
+        // Position
+        'latitude' => $lat,
+        'longitude' => $lon,
+        'positionISRS' => $positionISRS,
+        'positionName' => $positionName,
+        
+        // Mouvement
+        'speed' => $vitesse,
+        'course' => $cap,
+        'moving' => $enMouvement,
+        'status' => $statut,
+        
+        // Dimensions
+        'length' => $longueur,
+        'width' => $largeur,
+        
+        // Dimensions détaillées
+        'dimA' => isset($track['dimA']) ? intval($track['dimA']) : null,
+        'dimB' => isset($track['dimB']) ? intval($track['dimB']) : null,
+        'dimC' => isset($track['dimC']) ? intval($track['dimC']) : null,
+        'dimD' => isset($track['dimD']) ? intval($track['dimD']) : null,
+        
+        // Type de navire (non fourni par l'API)
+        'shipType' => 'Navire fluvial',
+        
+        // Timestamp
+        'timestamp' => $track['posTS'] ?? null,
+        
+        // Données originales pour debug
+        '_original' => $track
+    ];
+}, $tracks);
+
+// Filtrage des navires avec coordonnées valides
+$tracksValides = array_filter($tracksNormalisees, function($track) {
+    return $track['latitude'] !== null && 
+           $track['longitude'] !== null &&
+           $track['trackId'] !== null;
+});
+
+// Réindexation du tableau
+$tracksValides = array_values($tracksValides);
+
+// Réponse finale
 echo json_encode([
-  'ok' => true,
-  'count' => count($tracks),
-  'tracks' => $tracks
-], JSON_UNESCAPED_UNICODE);
+    'tracks' => $tracksValides,
+    '_metadata' => [
+        'timestamp' => date('c'),
+        'source' => 'EuRIS API via trackship.bakabi.fr',
+        'trackCount' => count($tracksValides),
+        'totalReceived' => count($tracks),
+        'validTracks' => count($tracksValides)
+    ]
+]);
+?>
