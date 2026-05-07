@@ -1,6 +1,6 @@
 <?php
 // api/euris-proxy.php
-// Backend adapté pour trackship.bakabi.fr avec trackID
+// Backend adapté pour trackship2.bakabi.fr avec trackID
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
