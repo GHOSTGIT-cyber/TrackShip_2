@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Alerte Navire 1km – Tapo</title>
+  <title>Alerte Navire 1km – Shelly</title>
   <style>
     body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin: 0; padding: 16px; background: #f6f7fb; color: #20223a; }
     .box { background: #fff; border: 1px solid #e8ebf6; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
@@ -54,7 +54,7 @@
   </div>
 
   <div class="box">
-    <h1>Prise Tapo (Cloud)</h1>
+    <h1>Prise Shelly (Cloud)</h1>
     <div class="row" style="margin-top:10px">
       <button id="btnTest">Tester la prise (allumer 10s)</button>
       <button id="btnOn">Allumer</button>
@@ -129,12 +129,12 @@
     let timer = null;
     let alerteActive = false;
 
-    // ================= BACKEND TAPO (Hostinger) =================
-    // Envoie uniquement action/durée au serveur /api/tapo.php, sans exposer d’identifiants Tapo.
-    async function tapoApi(action, dureeSec) {
+    // ================= BACKEND SHELLY (Coolify) =================
+    // Envoie action/durée à /api/shelly.php, qui relaie vers le Shelly Cloud officiel.
+    async function shellyApi(action, dureeSec) {
       const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
       try {
-        const res = await fetch('/api/tapo.php', {
+        const res = await fetch('/api/shelly.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -143,7 +143,7 @@
         if (!res.ok || data.ok === false) throw new Error(data.error || 'Erreur');
         log(data.message || ((action === 'on') ? 'Prise allumée' : 'Prise éteinte'));
       } catch (e) {
-        log('Erreur Tapo: ' + e.message);
+        log('Erreur Shelly: ' + e.message);
       }
     }
 
@@ -204,14 +204,14 @@
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box alert';
         log(`ALERTE: ${proches.length} navire(s) <= ${rayon} m → allumer`);
-        tapoApi('on');
+        shellyApi('on');
       } else if (!enAlerte && alerteActive) {
         alerteActive = false;
         el.etatAlerte.textContent = 'Alerte: inactif';
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box ok';
         log('FIN ALERTE → éteindre');
-        tapoApi('off');
+        shellyApi('off');
       }
     }
 
@@ -232,9 +232,9 @@
       }
     });
 
-    el.btnTest.addEventListener('click', () => tapoApi('on', 10));
-    el.btnOn.addEventListener('click', () => tapoApi('on'));
-    el.btnOff.addEventListener('click', () => tapoApi('off'));
+    el.btnTest.addEventListener('click', () => shellyApi('on', 10));
+    el.btnOn.addEventListener('click', () => shellyApi('on'));
+    el.btnOff.addEventListener('click', () => shellyApi('off'));
   </script>
 </body>
 </html>
