@@ -133,17 +133,28 @@
     // Envoie action/durée à /api/shelly.php, qui relaie vers le Shelly Cloud officiel.
     async function shellyApi(action, dureeSec) {
       const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
+      const tag = `Shelly ${action.toUpperCase()}${dureeSec ? `(${dureeSec}s)` : ''}`;
+      const t0 = performance.now();
       try {
         const res = await fetch('/api/shelly.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
+        const ms = Math.round(performance.now() - t0);
+        const ct = res.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+          const txt = (await res.text()).slice(0, 120).replace(/\s+/g, ' ');
+          throw new Error(`HTTP ${res.status} (${ms}ms) réponse non-JSON: ${txt}`);
+        }
         const data = await res.json();
-        if (!res.ok || data.ok === false) throw new Error(data.error || 'Erreur');
-        log(data.message || ((action === 'on') ? 'Prise allumée' : 'Prise éteinte'));
+        if (!res.ok || data.ok === false) {
+          const det = data.detail ? ` | ${JSON.stringify(data.detail).slice(0, 120)}` : '';
+          throw new Error(`HTTP ${res.status} (${ms}ms) ${data.error || 'erreur'}${det}`);
+        }
+        log(`${tag} OK (${ms}ms) — ${data.message || (action === 'on' ? 'allumée' : 'éteinte')}`);
       } catch (e) {
-        log('Erreur Shelly: ' + e.message);
+        log(`${tag} ÉCHEC — ${e.message}`);
       }
     }
 
@@ -152,7 +163,7 @@
       const token = el.token.value.trim();
       if (!token) {
         log('⚠️ Token EuRIS requis');
-        return { tracks: [] };
+        return { tracks: [], ms: 0 };
       }
       const lat = Number(el.lat.value);
       const lon = Number(el.lon.value);
@@ -162,40 +173,60 @@
       const bbox = makeBBox(lat, lon, Math.max(2000, rayon)); // BBox > rayon pour être sûr de capturer
       const url = `./euris-proxy.php?minLat=${bbox.minLat.toFixed(6)}&maxLat=${bbox.maxLat.toFixed(6)}&minLon=${bbox.minLon.toFixed(6)}&maxLon=${bbox.maxLon.toFixed(6)}&pageSize=${pageSize}`;
 
+      const t0 = performance.now();
       try {
         const res = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+        const ms = Math.round(performance.now() - t0);
         const data = await res.json();
         if (!res.ok) {
-          log(`Erreur API: ${res.status} ${data?.message || data?.error || 'inconnu'}`);
-          return { tracks: [] };
+          log(`EuRIS ÉCHEC HTTP ${res.status} (${ms}ms) — ${data?.message || data?.error || 'inconnu'}`);
+          return { tracks: [], ms };
         }
-        return data;
+        return { ...data, ms };
       } catch (e) {
-        log('Erreur réseau API: ' + e.message);
-        return { tracks: [] };
+        const ms = Math.round(performance.now() - t0);
+        log(`EuRIS réseau ÉCHEC (${ms}ms) — ${e.message}`);
+        return { tracks: [], ms };
       }
     }
 
     // ================= BOUCLE DE SURVEILLANCE =================
+    function fmtNavire(t) {
+      const nom = t.shipName || t.vesselName || t.ShipName || (t.mmsi ? `MMSI ${t.mmsi}` : '???');
+      const sog = t.speed ?? t.SOG;
+      const sogTxt = (sog !== null && sog !== undefined) ? ` ${Number(sog).toFixed(1)}kn` : '';
+      return `${nom} (${t.distance}m${sogTxt})`;
+    }
+
     async function tick() {
       const lat = Number(el.lat.value);
       const lon = Number(el.lon.value);
       const rayon = Number(el.rayon.value);
 
-      const { tracks = [] } = await fetchNavires();
+      const { tracks = [], ms = 0 } = await fetchNavires();
 
       // Filtrer par distance exacte au centre
       const proches = [];
+      let plusProche = null;
       for (const t of tracks) {
         const nlat = Number(t.latitude ?? t.lat ?? t.Latitude ?? 0);
         const nlon = Number(t.longitude ?? t.lon ?? t.Longitude ?? 0);
         if (!isFinite(nlat) || !isFinite(nlon)) continue;
         const d = distanceMeters(lat, lon, nlat, nlon);
-        if (d <= rayon) proches.push({ ...t, distance: Math.round(d) });
+        const enrichi = { ...t, distance: Math.round(d) };
+        if (!plusProche || d < plusProche.distance) plusProche = enrichi;
+        if (d <= rayon) proches.push(enrichi);
       }
+      proches.sort((a, b) => a.distance - b.distance);
 
       el.naviresCompteur.textContent = `Navires proches: ${proches.length}`;
       el.derniereMaj.textContent = 'Dernière MAJ: ' + new Date().toLocaleTimeString();
+
+      // Ligne de scan : toujours loguée pour avoir une trace continue
+      const proche = plusProche
+        ? ` | + proche: ${fmtNavire(plusProche)}`
+        : '';
+      log(`scan EuRIS ${ms}ms — ${tracks.length} reçus, ${proches.length} ≤ ${rayon}m${proche}`);
 
       const enAlerte = proches.length > 0;
       if (enAlerte && !alerteActive) {
@@ -203,14 +234,17 @@
         el.etatAlerte.textContent = 'Alerte: ACTIVE';
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box alert';
-        log(`ALERTE: ${proches.length} navire(s) <= ${rayon} m → allumer`);
+        const liste = proches.slice(0, 3).map(fmtNavire).join(', ');
+        const reste = proches.length > 3 ? ` +${proches.length - 3}` : '';
+        log(`ALERTE déclenchée — ${proches.length} navire(s) ≤ ${rayon}m: ${liste}${reste}`);
         shellyApi('on');
       } else if (!enAlerte && alerteActive) {
         alerteActive = false;
         el.etatAlerte.textContent = 'Alerte: inactif';
         el.etatAlerte.className = 'pill';
         el.boxEtat.className = 'box ok';
-        log('FIN ALERTE → éteindre');
+        const derInfo = plusProche ? ` (+ proche maintenant: ${fmtNavire(plusProche)})` : '';
+        log(`FIN ALERTE — zone vide${derInfo}`);
         shellyApi('off');
       }
     }
