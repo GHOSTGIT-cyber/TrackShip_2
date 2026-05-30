@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Alerte Navire 1km – Shelly</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin: 0; padding: 16px; background: #f6f7fb; color: #20223a; }
     .box { background: #fff; border: 1px solid #e8ebf6; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
@@ -18,6 +20,11 @@
     .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #eef2ff; color: #272968; font-size: 12px; margin-left: 6px; }
     .alert { background: #ffe9ea; color: #9a0414; border-color: #ffc7cc; }
     .ok { background: #e9fff1; color: #0b6b34; border-color: #b8f0cb; }
+    #map { height: 420px; border-radius: 8px; border: 1px solid #cfd5e6; }
+    .cron-state { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .cron-state .pill.warn { background: #fff3cd; color: #7a5b00; }
+    .cron-state .pill.bad  { background: #ffe9ea; color: #9a0414; }
+    .cron-state .pill.good { background: #e9fff1; color: #0b6b34; }
   </style>
 </head>
 <body>
@@ -50,6 +57,21 @@
         <label>Page size API</label>
         <input id="pageSize" type="number" value="100" />
       </div>
+    </div>
+  </div>
+
+  <div class="box">
+    <h1>Carte live</h1>
+    <div id="map"></div>
+  </div>
+
+  <div class="box">
+    <h1>Surveillance autonome (serveur)</h1>
+    <div class="cron-state">
+      <div id="cronAge" class="pill">Cron: en attente…</div>
+      <div id="cronAlerte" class="pill">Alerte serveur: ?</div>
+      <div id="cronCompteur" class="pill">Vu serveur: ?</div>
+      <div id="cronProche" class="pill">+ proche: ?</div>
     </div>
   </div>
 
@@ -124,10 +146,66 @@
       naviresCompteur: document.getElementById('naviresCompteur'),
       derniereMaj: document.getElementById('derniereMaj'),
       boxEtat: document.getElementById('boxEtat'),
+      cronAge: document.getElementById('cronAge'),
+      cronAlerte: document.getElementById('cronAlerte'),
+      cronCompteur: document.getElementById('cronCompteur'),
+      cronProche: document.getElementById('cronProche'),
     };
 
     let timer = null;
+    let cronTimer = null;
     let alerteActive = false;
+
+    // ================= CARTE LEAFLET =================
+    let map = null;
+    let baseMarker = null;
+    let baseCircle = null;
+    let shipLayer = null;
+
+    function initMap() {
+      const lat = Number(el.lat.value) || 48.853229;
+      const lon = Number(el.lon.value) || 2.225328;
+      const rayon = Number(el.rayon.value) || 1000;
+      map = L.map('map').setView([lat, lon], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+      baseCircle = L.circle([lat, lon], {
+        color: '#ff4a4a', weight: 2, fillColor: '#ff4a4a', fillOpacity: 0.08, radius: rayon
+      }).addTo(map);
+      baseMarker = L.circleMarker([lat, lon], {
+        color: '#5569ff', fillColor: '#5569ff', fillOpacity: 1, radius: 7
+      }).addTo(map).bindPopup('Base alerte');
+      shipLayer = L.layerGroup().addTo(map);
+    }
+
+    function fmtShipPopup(s) {
+      const name = s.name || s.shipName || (s.mmsi ? 'MMSI ' + s.mmsi : '???');
+      const sog  = s.speed ?? s.SOG;
+      const cog  = s.course ?? s.COG;
+      const sogTxt = (sog !== null && sog !== undefined) ? `<br>${Number(sog).toFixed(1)} kn` : '';
+      const cogTxt = (cog !== null && cog !== undefined) ? `, cap ${Math.round(Number(cog))}°` : '';
+      return `<b>${name}</b><br>${s.distance} m${sogTxt}${cogTxt}`;
+    }
+
+    function refreshMap(ships, baseLat, baseLon, rayon) {
+      if (!map) return;
+      baseCircle.setLatLng([baseLat, baseLon]); baseCircle.setRadius(rayon);
+      baseMarker.setLatLng([baseLat, baseLon]);
+      shipLayer.clearLayers();
+      for (const s of ships) {
+        const slat = s.lat ?? s.latitude;
+        const slon = s.lon ?? s.longitude;
+        if (!isFinite(slat) || !isFinite(slon)) continue;
+        const inRange = s.distance <= rayon;
+        const color = inRange ? '#ff4a4a' : '#3b82f6';
+        L.circleMarker([slat, slon], {
+          color, fillColor: color, fillOpacity: 0.85,
+          radius: inRange ? 7 : 5, weight: inRange ? 2 : 1
+        }).addTo(shipLayer).bindPopup(fmtShipPopup(s));
+      }
+    }
 
     // ================= BACKEND SHELLY (Coolify) =================
     // Envoie action/durée à /api/shelly.php, qui relaie vers le Shelly Cloud officiel.
@@ -205,7 +283,8 @@
 
       const { tracks = [], ms = 0 } = await fetchNavires();
 
-      // Filtrer par distance exacte au centre
+      // Enrichir tous les navires (pour la carte) + filtrer ceux dans le rayon
+      const allShips = [];
       const proches = [];
       let plusProche = null;
       for (const t of tracks) {
@@ -213,39 +292,79 @@
         const nlon = Number(t.longitude ?? t.lon ?? t.Longitude ?? 0);
         if (!isFinite(nlat) || !isFinite(nlon)) continue;
         const d = distanceMeters(lat, lon, nlat, nlon);
-        const enrichi = { ...t, distance: Math.round(d) };
+        const enrichi = { ...t, lat: nlat, lon: nlon, distance: Math.round(d) };
+        allShips.push(enrichi);
         if (!plusProche || d < plusProche.distance) plusProche = enrichi;
         if (d <= rayon) proches.push(enrichi);
       }
       proches.sort((a, b) => a.distance - b.distance);
 
+      refreshMap(allShips, lat, lon, rayon);
+
       el.naviresCompteur.textContent = `Navires proches: ${proches.length}`;
       el.derniereMaj.textContent = 'Dernière MAJ: ' + new Date().toLocaleTimeString();
 
-      // Ligne de scan : toujours loguée pour avoir une trace continue
-      const proche = plusProche
-        ? ` | + proche: ${fmtNavire(plusProche)}`
-        : '';
+      const proche = plusProche ? ` | + proche: ${fmtNavire(plusProche)}` : '';
       log(`scan EuRIS ${ms}ms — ${tracks.length} reçus, ${proches.length} ≤ ${rayon}m${proche}`);
 
+      // NB: Shelly est piloté côté serveur par cron/tick.php toutes les 30s.
+      // La page n'allume/éteint plus automatiquement pour éviter les doublons.
+      // Les boutons Allumer/Éteindre/Test 10s restent dispo pour le contrôle manuel.
       const enAlerte = proches.length > 0;
       if (enAlerte && !alerteActive) {
         alerteActive = true;
-        el.etatAlerte.textContent = 'Alerte: ACTIVE';
-        el.etatAlerte.className = 'pill';
+        el.etatAlerte.textContent = 'Alerte (vue page): ACTIVE';
         el.boxEtat.className = 'box alert';
         const liste = proches.slice(0, 3).map(fmtNavire).join(', ');
         const reste = proches.length > 3 ? ` +${proches.length - 3}` : '';
-        log(`ALERTE déclenchée — ${proches.length} navire(s) ≤ ${rayon}m: ${liste}${reste}`);
-        shellyApi('on');
+        log(`ALERTE (page) — ${proches.length} navire(s) ≤ ${rayon}m: ${liste}${reste}`);
       } else if (!enAlerte && alerteActive) {
         alerteActive = false;
-        el.etatAlerte.textContent = 'Alerte: inactif';
-        el.etatAlerte.className = 'pill';
+        el.etatAlerte.textContent = 'Alerte (vue page): inactif';
         el.boxEtat.className = 'box ok';
-        const derInfo = plusProche ? ` (+ proche maintenant: ${fmtNavire(plusProche)})` : '';
-        log(`FIN ALERTE — zone vide${derInfo}`);
-        shellyApi('off');
+        log('FIN ALERTE (page) — zone vide');
+      }
+    }
+
+    // ================= POLLING ÉTAT DU CRON SERVEUR =================
+    async function pollCronState() {
+      try {
+        const res = await fetch('/api/state.php', { cache: 'no-store' });
+        if (!res.ok) {
+          el.cronAge.textContent = `Cron: HTTP ${res.status}`;
+          el.cronAge.className = 'pill bad';
+          return;
+        }
+        const s = await res.json();
+        if (!s.ok) {
+          el.cronAge.textContent = `Cron: ${s.error || 'KO'}`;
+          el.cronAge.className = 'pill bad';
+          return;
+        }
+        // Âge du dernier tick
+        const age = s._age_seconds;
+        el.cronAge.textContent = `Cron: tick il y a ${age}s`;
+        el.cronAge.className = 'pill ' + (s._stale ? 'bad' : (age > 40 ? 'warn' : 'good'));
+        // Alerte serveur
+        el.cronAlerte.textContent = `Alerte serveur: ${s.alert_active ? 'ACTIVE' : 'inactif'}`;
+        el.cronAlerte.className = 'pill ' + (s.alert_active ? 'bad' : 'good');
+        // Compteurs
+        el.cronCompteur.textContent = `Vu serveur: ${s.ships_in_range}/${s.ships_total}`;
+        // Plus proche
+        if (s.closest_ship) {
+          const c = s.closest_ship;
+          const nm = c.name || (c.mmsi ? 'MMSI ' + c.mmsi : '???');
+          el.cronProche.textContent = `+ proche: ${nm} @ ${c.distance}m`;
+        } else {
+          el.cronProche.textContent = '+ proche: aucun';
+        }
+        // Carte : utiliser aussi les positions du cron si la page n'est pas en surveillance active
+        if (!timer && Array.isArray(s.ships)) {
+          refreshMap(s.ships, s.base.lat, s.base.lon, s.radius_m);
+        }
+      } catch (e) {
+        el.cronAge.textContent = `Cron: erreur ${e.message}`;
+        el.cronAge.className = 'pill bad';
       }
     }
 
@@ -269,6 +388,11 @@
     el.btnTest.addEventListener('click', () => shellyApi('on', 10));
     el.btnOn.addEventListener('click', () => shellyApi('on'));
     el.btnOff.addEventListener('click', () => shellyApi('off'));
+
+    // ================= INITIALISATION =================
+    initMap();
+    pollCronState();
+    cronTimer = setInterval(pollCronState, 15000); // toutes les 15s
   </script>
 </body>
 </html>
