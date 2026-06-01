@@ -11,22 +11,33 @@ declare(strict_types=1);
 
 date_default_timezone_set('Europe/Paris');
 
-const STATE_DIR  = __DIR__ . '/data';
-const STATE_FILE = STATE_DIR . '/state.json';
-const LOG_FILE   = STATE_DIR . '/tick.log';
+const STATE_DIR   = __DIR__ . '/data';
+const STATE_FILE  = STATE_DIR . '/state.json';
+const CONFIG_FILE = STATE_DIR . '/config.json';
+const LOG_FILE    = STATE_DIR . '/tick.log';
 
 @mkdir(STATE_DIR, 0777, true);
 @chmod(STATE_DIR, 0777);
 
-// ====== CONFIG (variables d'environnement Coolify) ======
+// ====== CONFIG (env Coolify = défauts, config.json piloté par la page = override) ======
 $EURIS_TOKEN  = (string) getenv('EURIS_TOKEN');
-$LAT          = (float) (getenv('ALERTE_LAT')   ?: 48.853229);
-$LON          = (float) (getenv('ALERTE_LON')   ?: 2.225328);
-$RAYON        = (int)   (getenv('ALERTE_RAYON') ?: 1000);
 $BBOX_PAGE    = (int)   (getenv('EURIS_PAGE_SIZE') ?: 200);
 $SHELLY_HOST  = (string) getenv('SHELLY_HOST');
 $SHELLY_KEY   = (string) getenv('SHELLY_AUTH_KEY');
 $SHELLY_ID    = (string) getenv('SHELLY_DEVICE_ID');
+
+$envLat   = (float) (getenv('ALERTE_LAT')   ?: 48.853229);
+$envLon   = (float) (getenv('ALERTE_LON')   ?: 2.225328);
+$envRayon = (int)   (getenv('ALERTE_RAYON') ?: 1000);
+
+$cfg = [];
+if (is_file(CONFIG_FILE)) {
+    $cfg = @json_decode((string) @file_get_contents(CONFIG_FILE), true) ?: [];
+}
+$ENABLED = !array_key_exists('enabled', $cfg) || (bool) $cfg['enabled'];
+$LAT     = (float) ($cfg['lat']      ?? $envLat);
+$LON     = (float) ($cfg['lon']      ?? $envLon);
+$RAYON   = (int)   ($cfg['radius_m'] ?? $envRayon);
 
 // ====== HELPERS ======
 function tickLog(string $msg): void {
@@ -74,6 +85,21 @@ if ($EURIS_TOKEN === '') { tickLog('ABANDON — EURIS_TOKEN manquant');  exit(1)
 if ($SHELLY_HOST === '' || $SHELLY_KEY === '' || $SHELLY_ID === '') {
     tickLog('ABANDON — SHELLY_HOST/AUTH_KEY/DEVICE_ID manquants');
     exit(1);
+}
+
+// ====== KILL SWITCH : surveillance désactivée depuis la page ======
+if (!$ENABLED) {
+    // Mise à jour minimale du state pour que la page voie "désactivé"
+    $prevState = is_file(STATE_FILE)
+        ? (@json_decode(@file_get_contents(STATE_FILE), true) ?: [])
+        : [];
+    $prevState['timestamp'] = date('c');
+    $prevState['disabled']  = true;
+    $prevState['enabled']   = false;
+    file_put_contents(STATE_FILE, json_encode($prevState, JSON_UNESCAPED_UNICODE));
+    @chmod(STATE_FILE, 0666);
+    tickLog('surveillance désactivée (api/config.php) — skip tick');
+    exit(0);
 }
 
 // ====== BBOX (légèrement plus grande que le rayon pour ne rien rater) ======
@@ -163,6 +189,8 @@ if ($prevActive === null || $nowActive !== $prevActive) {
 // ====== PERSIST STATE ======
 $state = [
     'timestamp'      => date('c'),
+    'enabled'        => true,
+    'disabled'       => false,
     'alert_active'   => $nowActive,
     'ships_total'    => count($ships),
     'ships_in_range' => count($proches),
