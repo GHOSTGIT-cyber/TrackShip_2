@@ -226,6 +226,7 @@ $state = [
     'euris_ms'       => $eurisMs,
     'shelly_action'  => $shellyAction,
     'shelly_result'  => $shellyResult,
+    'debug_first_raw'=> $source[0] ?? null, // TEMPORAIRE : inspecter les vrais champs EuRIS
 ];
 file_put_contents(STATE_FILE, json_encode($state, JSON_UNESCAPED_UNICODE));
 @chmod(STATE_FILE, 0666);
