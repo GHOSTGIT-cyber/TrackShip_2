@@ -162,20 +162,24 @@ $ships     = [];   // tous les navires avec position (pour la carte)
 $proches   = [];   // en mouvement ET ≤ rayon → déclencheurs
 $plusProche = null;
 foreach ($source as $t) {
-    $nlat = $t['latitude'] ?? $t['lat'] ?? $t['Latitude'] ?? null;
-    $nlon = $t['longitude'] ?? $t['lon'] ?? $t['Longitude'] ?? null;
+    $nlat = $t['lat'] ?? $t['latitude'] ?? $t['Latitude'] ?? null;
+    $nlon = $t['lon'] ?? $t['longitude'] ?? $t['Longitude'] ?? null;
     if ($nlat === null || $nlon === null) continue;
     $d = (int) round(haversine($LAT, $LON, (float) $nlat, (float) $nlon));
-    $speed  = $t['speed'] ?? $t['SOG'] ?? null;
-    $moving = ($speed === null) || ((float) $speed >= SEUIL_MOUVEMENT_KN);
+    $sog = $t['sog'] ?? $t['speed'] ?? $t['SOG'] ?? null;
+    // EuRIS fournit son propre drapeau "moving" : on lui fait confiance en priorité.
+    // Sinon (drapeau absent) on retombe sur la vitesse (sog) ≥ seuil.
+    $eurisMoving = array_key_exists('moving', $t) ? (bool) $t['moving'] : null;
+    $moving = ($eurisMoving === true)
+        || ($eurisMoving === null && $sog !== null && (float) $sog >= SEUIL_MOUVEMENT_KN);
     $info = [
-        'name'     => $t['shipName'] ?? $t['vesselName'] ?? $t['ShipName'] ?? null,
-        'mmsi'     => $t['mmsi']     ?? $t['MMSI']       ?? null,
+        'name'     => $t['name'] ?? $t['shipName'] ?? null,
+        'mmsi'     => $t['mmsi'] ?? null,
         'lat'      => (float) $nlat,
         'lon'      => (float) $nlon,
         'distance' => $d,
-        'speed'    => $speed,
-        'course'   => $t['course'] ?? $t['COG'] ?? null,
+        'speed'    => $sog,
+        'course'   => $t['cog'] ?? $t['course'] ?? null,
         'moving'   => $moving,
     ];
     $ships[] = $info;
@@ -226,7 +230,6 @@ $state = [
     'euris_ms'       => $eurisMs,
     'shelly_action'  => $shellyAction,
     'shelly_result'  => $shellyResult,
-    'debug_first_raw'=> $source[0] ?? null, // TEMPORAIRE : inspecter les vrais champs EuRIS
 ];
 file_put_contents(STATE_FILE, json_encode($state, JSON_UNESCAPED_UNICODE));
 @chmod(STATE_FILE, 0666);
