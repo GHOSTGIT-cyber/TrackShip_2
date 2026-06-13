@@ -3,321 +3,353 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Alerte Navire – Commande</title>
+  <title>Alerte Navire — Commande</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    body { font-family: system-ui, Segoe UI, Arial, sans-serif; margin: 0; padding: 16px; background: #f6f7fb; color: #20223a; }
-    .box { background: #fff; border: 1px solid #e8ebf6; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
-    h1 { font-size: 20px; margin: 4px 0 12px; }
-    label { display: block; font-size: 13px; margin: 8px 0 4px; }
-    input { width: 100%; padding: 10px; border: 1px solid #cfd5e6; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .row > div { flex: 1; min-width: 150px; }
-    button { cursor: pointer; padding: 10px 14px; border: 0; border-radius: 8px; background: #5569ff; color: #fff; font-weight: 600; }
-    button.secondary { background: #e8eaff; color: #29306d; }
-    button.danger { background: #e23b46; }
-    .status { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; white-space: pre-wrap; background: #f2f4fb; color: #1d1f3f; border-radius: 8px; padding: 10px; overflow: auto; max-height: 180px; }
-    .pill { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #eef2ff; color: #272968; font-size: 12px; margin: 2px 6px 2px 0; }
-    .pill.warn { background: #fff3cd; color: #7a5b00; }
-    .pill.bad  { background: #ffe9ea; color: #9a0414; }
-    .pill.good { background: #e9fff1; color: #0b6b34; }
-    .alert { background: #ffe9ea; border-color: #ffc7cc; }
-    .ok { background: #e9fff1; border-color: #b8f0cb; }
-    #map { height: 210px; border-radius: 8px; border: 1px solid #cfd5e6; }
-    .legende { font-size: 12px; color: #5a5e7a; margin-top: 6px; }
-    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin: 0 3px -1px 8px; }
+    :root {
+      --bg:#0f1426; --card:#181f38; --card2:#1e2745; --line:#2b3559;
+      --txt:#eef1fb; --muted:#9aa3c4; --accent:#5569ff;
+      --green:#1fbf6b; --red:#ff4d5e; --amber:#ffb02e; --grey:#7a83a6;
+    }
+    * { box-sizing:border-box; }
+    body { font-family: system-ui, "Segoe UI", Arial, sans-serif; margin:0; padding:14px;
+           background:var(--bg); color:var(--txt); max-width:760px; margin:0 auto; }
+    h2 { font-size:14px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted);
+         margin:0 0 10px; font-weight:700; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+            padding:16px; margin-bottom:14px; }
+
+    /* ---- HERO ---- */
+    .hero { text-align:center; padding:22px 16px; border-radius:16px; border:1px solid var(--line);
+            margin-bottom:14px; transition:background .3s; }
+    .hero.ok   { background:linear-gradient(160deg,#143a2a,#10243a); }
+    .hero.alert{ background:linear-gradient(160deg,#4a1620,#2a1130); }
+    .hero.off  { background:linear-gradient(160deg,#3a3414,#23203a); }
+    .hero.dead { background:linear-gradient(160deg,#3a1414,#231320); }
+    .hero .big { font-size:26px; font-weight:800; margin:4px 0; }
+    .hero .sub { font-size:15px; color:var(--muted); }
+    .hero .plug { margin-top:12px; font-size:15px; font-weight:600; }
+
+    /* ---- BUTTONS ---- */
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    button { cursor:pointer; padding:14px; border:0; border-radius:11px; font-size:15px;
+             font-weight:700; color:#fff; background:var(--accent); transition:transform .05s, opacity .2s; }
+    button:active { transform:scale(.97); }
+    button.green { background:var(--green); }
+    button.red   { background:var(--red); }
+    button.grey  { background:var(--card2); color:var(--txt); border:1px solid var(--line); }
+    button:disabled { opacity:.35; cursor:not-allowed; }
+    .full { grid-column:1 / -1; }
+
+    /* ---- LOCK ---- */
+    .lock { display:flex; gap:10px; align-items:center; }
+    .lock input { flex:1; padding:13px; border-radius:11px; border:1px solid var(--line);
+                  background:var(--card2); color:var(--txt); font-size:15px; }
+    .lock button { white-space:nowrap; }
+    .lockmsg { font-size:13px; color:var(--muted); margin-top:8px; }
+    .lockmsg b.on { color:var(--green); }
+    .lockmsg b.off { color:var(--amber); }
+
+    /* ---- PILLS ---- */
+    .pills { display:flex; flex-wrap:wrap; gap:8px; }
+    .pill { font-size:13px; padding:6px 11px; border-radius:999px; background:var(--card2);
+            border:1px solid var(--line); color:var(--txt); }
+    .pill .k { color:var(--muted); }
+    .pill.good { border-color:#1c6b46; } .pill.good .v { color:var(--green); }
+    .pill.bad  { border-color:#6b1c28; } .pill.bad .v { color:var(--red); }
+    .pill.warn { border-color:#6b5a1c; } .pill.warn .v { color:var(--amber); }
+
+    /* ---- ZONE (advanced) ---- */
+    details summary { cursor:pointer; color:var(--muted); font-size:13px; font-weight:700;
+                      text-transform:uppercase; letter-spacing:.5px; }
+    .zone { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+    .zone label { font-size:12px; color:var(--muted); display:block; margin-bottom:4px; }
+    .zone input { width:100%; padding:11px; border-radius:10px; border:1px solid var(--line);
+                  background:var(--card2); color:var(--txt); font-size:14px; }
+
+    #map { height:240px; border-radius:11px; border:1px solid var(--line); }
+    .legende { font-size:12px; color:var(--muted); margin-top:8px; line-height:1.8; }
+    .dot { display:inline-block; width:11px; height:11px; border-radius:50%; margin:0 4px -1px 10px; }
+
+    .log { font-family:ui-monospace, Menlo, monospace; font-size:12px; white-space:pre-wrap;
+           background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px;
+           max-height:150px; overflow:auto; color:#c7cef0; }
   </style>
 </head>
 <body>
 
-  <div class="box">
-    <h1>Alerte Navire <span class="pill">alerte.bakabi.fr</span></h1>
-    <div class="row">
-      <div>
-        <label>Mot de passe commandes</label>
-        <input id="pagePass" type="password" placeholder="Mot de passe" />
-      </div>
-      <div>
-        <label>Latitude base</label>
-        <input id="latBase" type="number" step="0.000001" value="48.853229" />
-      </div>
-      <div>
-        <label>Longitude base</label>
-        <input id="lonBase" type="number" step="0.000001" value="2.225328" />
-      </div>
-      <div>
-        <label>Rayon alerte (m)</label>
-        <input id="rayon" type="number" value="1000" />
-      </div>
+  <!-- ====== ÉTAT GLOBAL ====== -->
+  <div class="hero dead" id="hero">
+    <div class="sub" id="heroSub">Connexion au serveur…</div>
+    <div class="big" id="heroBig">—</div>
+    <div class="plug" id="heroPlug">Prise : —</div>
+  </div>
+
+  <!-- ====== DÉVERROUILLAGE ====== -->
+  <div class="card">
+    <h2>Accès commandes</h2>
+    <div class="lock">
+      <input id="pagePass" type="password" placeholder="Mot de passe" autocomplete="current-password" />
+      <button id="btnUnlock">Déverrouiller</button>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button id="btnZoneSync" class="secondary">Appliquer la zone au serveur</button>
+    <div class="lockmsg" id="lockMsg">🔒 Verrouillé — entre le mot de passe pour piloter. La lecture (carte, état) reste visible sans mot de passe.</div>
+  </div>
+
+  <!-- ====== SURVEILLANCE AUTO ====== -->
+  <div class="card">
+    <h2>Surveillance automatique</h2>
+    <p style="margin:0 0 12px; font-size:14px; color:var(--muted)">
+      Le serveur scanne tout seul toutes les 15 s, 24h/24. Allume la prise quand un bateau <b>en mouvement</b> entre dans la zone, l'éteint quand il sort.
+    </p>
+    <div class="grid">
+      <button class="green cmd" id="btnCronOn" disabled>Activer</button>
+      <button class="red cmd" id="btnCronOff" disabled>Désactiver</button>
     </div>
   </div>
 
-  <div class="box" id="boxEtat">
-    <h1>Surveillance serveur (autonome 24/7)</h1>
-    <div>
-      <span id="cronAge" class="pill">Serveur: connexion…</span>
-      <span id="cronAlerte" class="pill">Alerte: ?</span>
-      <span id="cronCompteur" class="pill">Navires: ?</span>
-      <span id="cronProche" class="pill">+ proche: ?</span>
+  <!-- ====== PRISE MANUELLE ====== -->
+  <div class="card">
+    <h2>Prise (manuel)</h2>
+    <div class="grid">
+      <button class="green cmd" id="btnOn" disabled>Allumer</button>
+      <button class="red cmd" id="btnOff" disabled>Éteindre</button>
+      <button class="grey cmd" id="btnTest" disabled>Test 10 s</button>
+      <button class="grey" id="btnPlugCheck">Détecter la prise</button>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button id="btnCronOn">Activer la surveillance</button>
-      <button id="btnCronOff" class="danger">Désactiver la surveillance</button>
-    </div>
-  </div>
-
-  <div class="box">
-    <h1>Prise Shelly</h1>
-    <div>
-      <span id="plugOnline" class="pill">Prise: ?</span>
-      <span id="plugOutput" class="pill">Sortie: ?</span>
-      <span id="plugPower" class="pill">Conso: ?</span>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button id="btnPlugCheck" class="secondary">Détecter la prise</button>
-      <button id="btnTest">Tester (10s)</button>
-      <button id="btnOn">Allumer</button>
-      <button id="btnOff" class="secondary">Éteindre</button>
+    <div class="pills" style="margin-top:12px">
+      <span class="pill" id="plugOnline"><span class="k">Prise</span> <span class="v">?</span></span>
+      <span class="pill" id="plugOutput"><span class="k">Sortie</span> <span class="v">?</span></span>
+      <span class="pill" id="plugPower"><span class="k">Conso</span> <span class="v">?</span></span>
     </div>
   </div>
 
-  <div class="box">
-    <h1>Journal</h1>
-    <div class="status" id="log"></div>
+  <!-- ====== INFOS SCAN ====== -->
+  <div class="card">
+    <h2>Dernier scan</h2>
+    <div class="pills">
+      <span class="pill" id="cronAge"><span class="k">Serveur</span> <span class="v">…</span></span>
+      <span class="pill" id="cronCompteur"><span class="k">Bateaux</span> <span class="v">?</span></span>
+      <span class="pill" id="cronProche"><span class="k">+ proche</span> <span class="v">?</span></span>
+    </div>
   </div>
 
-  <div class="box">
-    <h1>Carte live</h1>
+  <!-- ====== CARTE ====== -->
+  <div class="card">
+    <h2>Carte live</h2>
     <div id="map"></div>
     <div class="legende">
-      <span class="dot" style="background:#e23b46"></span>en mouvement dans la zone (déclenche)
-      <span class="dot" style="background:#3b82f6"></span>en mouvement
-      <span class="dot" style="background:#9aa0b4"></span>à l'arrêt (ignoré)
+      <span class="dot" style="background:#ff4d5e"></span>en mouvement dans la zone (déclenche la prise)
+      <span class="dot" style="background:#3b82f6"></span>en mouvement, hors zone
+      <span class="dot" style="background:#9aa3c4"></span>à l'arrêt / amarré (ignoré)
     </div>
+  </div>
+
+  <!-- ====== ZONE (avancé) ====== -->
+  <div class="card">
+    <details>
+      <summary>Réglage de la zone (avancé)</summary>
+      <div class="zone">
+        <div><label>Latitude base</label><input id="latBase" type="number" step="0.000001" value="48.853229" /></div>
+        <div><label>Longitude base</label><input id="lonBase" type="number" step="0.000001" value="2.225328" /></div>
+        <div><label>Rayon (mètres)</label><input id="rayon" type="number" value="1000" /></div>
+        <div style="display:flex; align-items:flex-end"><button class="cmd full" id="btnZoneSync" disabled>Appliquer au serveur</button></div>
+      </div>
+    </details>
+  </div>
+
+  <!-- ====== JOURNAL ====== -->
+  <div class="card">
+    <h2>Journal</h2>
+    <div class="log" id="log"></div>
   </div>
 
   <script>
-    // ================= UTILITAIRES =================
-    const logEl = document.getElementById('log');
+    const $ = id => document.getElementById(id);
+    const logEl = $('log');
     function log(msg) {
       const t = new Date().toLocaleTimeString();
       logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
     }
 
     const el = {
-      pass: document.getElementById('pagePass'),
-      lat: document.getElementById('latBase'),
-      lon: document.getElementById('lonBase'),
-      rayon: document.getElementById('rayon'),
-      btnZoneSync: document.getElementById('btnZoneSync'),
-      cronAge: document.getElementById('cronAge'),
-      cronAlerte: document.getElementById('cronAlerte'),
-      cronCompteur: document.getElementById('cronCompteur'),
-      cronProche: document.getElementById('cronProche'),
-      btnCronOn: document.getElementById('btnCronOn'),
-      btnCronOff: document.getElementById('btnCronOff'),
-      plugOnline: document.getElementById('plugOnline'),
-      plugOutput: document.getElementById('plugOutput'),
-      plugPower: document.getElementById('plugPower'),
-      btnPlugCheck: document.getElementById('btnPlugCheck'),
-      btnTest: document.getElementById('btnTest'),
-      btnOn: document.getElementById('btnOn'),
-      btnOff: document.getElementById('btnOff'),
-      boxEtat: document.getElementById('boxEtat'),
+      pass:$('pagePass'), btnUnlock:$('btnUnlock'), lockMsg:$('lockMsg'),
+      hero:$('hero'), heroBig:$('heroBig'), heroSub:$('heroSub'), heroPlug:$('heroPlug'),
+      lat:$('latBase'), lon:$('lonBase'), rayon:$('rayon'), btnZoneSync:$('btnZoneSync'),
+      cronAge:$('cronAge'), cronCompteur:$('cronCompteur'), cronProche:$('cronProche'),
+      btnCronOn:$('btnCronOn'), btnCronOff:$('btnCronOff'),
+      plugOnline:$('plugOnline'), plugOutput:$('plugOutput'), plugPower:$('plugPower'),
+      btnPlugCheck:$('btnPlugCheck'), btnTest:$('btnTest'), btnOn:$('btnOn'), btnOff:$('btnOff'),
     };
 
-    // Mot de passe : mémorisé dans le navigateur (sessionStorage)
+    // ============ VERROUILLAGE ============
+    let unlocked = false;
     el.pass.value = sessionStorage.getItem('page_pass') || '';
-    el.pass.addEventListener('change', () => sessionStorage.setItem('page_pass', el.pass.value));
-    function authHeaders() {
-      return { 'Content-Type': 'application/json', 'X-Page-Auth': el.pass.value };
+    function setUnlocked(state) {
+      unlocked = state;
+      document.querySelectorAll('.cmd').forEach(b => b.disabled = !state);
+      if (state) {
+        el.lockMsg.innerHTML = '🔓 <b class="on">Déverrouillé</b> — tu peux piloter la prise et la surveillance.';
+        el.btnUnlock.textContent = 'OK';
+      } else {
+        el.lockMsg.innerHTML = '🔒 Verrouillé — entre le mot de passe pour piloter. La lecture reste visible.';
+        el.btnUnlock.textContent = 'Déverrouiller';
+      }
     }
+    function authHeaders() { return { 'Content-Type':'application/json', 'X-Page-Auth':el.pass.value }; }
 
-    // ================= CARTE LEAFLET =================
-    let map = null, baseMarker = null, baseCircle = null, shipLayer = null;
+    async function tryUnlock() {
+      sessionStorage.setItem('page_pass', el.pass.value);
+      try {
+        // POST neutre sur config.php : 401 si mauvais mdp, 200 sinon
+        const res = await fetch('/api/config.php', { method:'POST', headers:authHeaders(), body:'{}' });
+        if (res.status === 401) { setUnlocked(false); el.lockMsg.innerHTML = '❌ Mot de passe incorrect.'; return; }
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        setUnlocked(true); log('Accès déverrouillé');
+      } catch (e) { setUnlocked(false); log('Déverrouillage échoué: ' + e.message); }
+    }
+    el.btnUnlock.addEventListener('click', tryUnlock);
+    el.pass.addEventListener('keydown', e => { if (e.key === 'Enter') tryUnlock(); });
 
+    // ============ CARTE ============
+    let map=null, baseMarker=null, baseCircle=null, shipLayer=null;
     function initMap() {
-      const lat = Number(el.lat.value), lon = Number(el.lon.value), rayon = Number(el.rayon.value);
-      map = L.map('map').setView([lat, lon], 14);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '© OpenStreetMap'
-      }).addTo(map);
-      baseCircle = L.circle([lat, lon], { color: '#e23b46', weight: 2, fillColor: '#e23b46', fillOpacity: 0.08, radius: rayon }).addTo(map);
-      baseMarker = L.circleMarker([lat, lon], { color: '#5569ff', fillColor: '#5569ff', fillOpacity: 1, radius: 7 }).addTo(map).bindPopup('Base alerte');
+      const lat=Number(el.lat.value), lon=Number(el.lon.value), r=Number(el.rayon.value);
+      map = L.map('map').setView([lat,lon], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+      baseCircle = L.circle([lat,lon],{color:'#ff4d5e',weight:2,fillColor:'#ff4d5e',fillOpacity:0.08,radius:r}).addTo(map);
+      baseMarker = L.circleMarker([lat,lon],{color:'#5569ff',fillColor:'#5569ff',fillOpacity:1,radius:7}).addTo(map).bindPopup('Base');
       shipLayer = L.layerGroup().addTo(map);
     }
-
     function shipPopup(s) {
-      const name = s.name || (s.mmsi ? 'MMSI ' + s.mmsi : '???');
-      const sog = (s.speed !== null && s.speed !== undefined) ? `<br>${Number(s.speed).toFixed(1)} kn` : '';
-      const cog = (s.course !== null && s.course !== undefined) ? `, cap ${Math.round(Number(s.course))}°` : '';
-      const etat = s.moving ? 'en mouvement' : "à l'arrêt (ignoré)";
-      return `<b>${name}</b><br>${s.distance} m — ${etat}${sog}${cog}`;
+      const name = s.name || (s.mmsi ? 'MMSI '+s.mmsi : '???');
+      const sog = (s.speed!=null) ? `<br>${Number(s.speed).toFixed(1)} kn` : '';
+      const etat = s.moving ? 'en mouvement' : "à l'arrêt";
+      return `<b>${name}</b><br>${s.distance} m — ${etat}${sog}`;
     }
-
-    function refreshMap(ships, baseLat, baseLon, rayon) {
+    function refreshMap(ships, bLat, bLon, r) {
       if (!map) return;
-      baseCircle.setLatLng([baseLat, baseLon]); baseCircle.setRadius(rayon);
-      baseMarker.setLatLng([baseLat, baseLon]);
+      baseCircle.setLatLng([bLat,bLon]); baseCircle.setRadius(r);
+      baseMarker.setLatLng([bLat,bLon]);
       shipLayer.clearLayers();
       for (const s of ships) {
         if (!isFinite(s.lat) || !isFinite(s.lon)) continue;
-        const inRange = s.moving && s.distance <= rayon;
-        const color = inRange ? '#e23b46' : (s.moving ? '#3b82f6' : '#9aa0b4');
-        L.circleMarker([s.lat, s.lon], {
-          color, fillColor: color, fillOpacity: 0.85,
-          radius: inRange ? 7 : 5, weight: inRange ? 2 : 1
-        }).addTo(shipLayer).bindPopup(shipPopup(s));
+        const inRange = s.moving && s.distance <= r;
+        const color = inRange ? '#ff4d5e' : (s.moving ? '#3b82f6' : '#9aa3c4');
+        L.circleMarker([s.lat,s.lon],{color,fillColor:color,fillOpacity:.85,radius:inRange?7:5,weight:inRange?2:1})
+          .addTo(shipLayer).bindPopup(shipPopup(s));
       }
     }
 
-    // ================= API GÉNÉRIQUE =================
+    // ============ APPELS ============
     async function postJson(url, payload, label) {
+      if (!unlocked) { log(label + ' — déverrouille d\'abord (mot de passe)'); return null; }
       try {
-        const res = await fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(payload) });
-        const data = await res.json().catch(() => ({}));
-        if (res.status === 401) throw new Error('mot de passe invalide (champ en haut de page)');
-        if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
-        log(`${label} OK${data.message ? ' — ' + data.message : ''}`);
+        const res = await fetch(url,{method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});
+        const data = await res.json().catch(()=>({}));
+        if (res.status===401){ setUnlocked(false); throw new Error('mot de passe invalide'); }
+        if (!res.ok || data.ok===false) throw new Error(data.error || 'HTTP '+res.status);
+        log(`${label} OK${data.message?' — '+data.message:''}`);
         return data;
-      } catch (e) {
-        log(`${label} ÉCHEC — ${e.message}`);
-        return null;
-      }
+      } catch(e){ log(`${label} ÉCHEC — ${e.message}`); return null; }
     }
-
-    // ================= PRISE SHELLY =================
-    function shellyApi(action, dureeSec) {
-      const payload = dureeSec ? { action, duree: Number(dureeSec) } : { action };
-      const tag = `Prise ${action.toUpperCase()}${dureeSec ? `(${dureeSec}s)` : ''}`;
-      return postJson('/api/shelly.php', payload, tag).then(r => { if (r) setTimeout(pollPlug, 2500); });
+    function shellyApi(action, duree) {
+      const tag = `Prise ${action.toUpperCase()}${duree?`(${duree}s)`:''}`;
+      return postJson('/api/shelly.php', duree?{action,duree}:{action}, tag).then(r=>{ if(r) setTimeout(pollPlug,2500); });
     }
 
     async function pollPlug() {
       try {
-        const res = await fetch('/api/shelly-status.php', { cache: 'no-store' });
+        const res = await fetch('/api/shelly-status.php',{cache:'no-store'});
         const s = await res.json();
-        if (!s.ok) throw new Error(s.error || 'HTTP ' + res.status);
-        el.plugOnline.textContent = s.online ? 'Prise: EN LIGNE' : 'Prise: HORS LIGNE';
-        el.plugOnline.className = 'pill ' + (s.online ? 'good' : 'bad');
-        el.plugOutput.textContent = 'Sortie: ' + (s.output === null ? '?' : (s.output ? 'ALLUMÉE' : 'éteinte'));
-        el.plugOutput.className = 'pill ' + (s.output ? 'warn' : '');
-        el.plugPower.textContent = 'Conso: ' + (s.power_w === null ? '?' : s.power_w.toFixed(1) + ' W');
+        if (!s.ok) throw new Error(s.error||'HTTP '+res.status);
+        el.plugOnline.className = 'pill ' + (s.online?'good':'bad');
+        el.plugOnline.querySelector('.v').textContent = s.online?'en ligne':'hors ligne';
+        el.plugOutput.className = 'pill ' + (s.output?'warn':'');
+        el.plugOutput.querySelector('.v').textContent = s.output==null?'?':(s.output?'ALLUMÉE':'éteinte');
+        el.plugPower.querySelector('.v').textContent = s.power_w==null?'?':s.power_w.toFixed(1)+' W';
+        el.heroPlug.textContent = `Prise : ${s.online?(s.output?'ALLUMÉE':'éteinte'):'HORS LIGNE'}${s.power_w?` · ${s.power_w.toFixed(0)} W`:''}`;
         return s;
-      } catch (e) {
-        el.plugOnline.textContent = 'Prise: erreur';
-        el.plugOnline.className = 'pill bad';
-        el.plugOutput.textContent = 'Sortie: ?';
-        el.plugPower.textContent = 'Conso: ?';
+      } catch(e){
+        el.plugOnline.className='pill bad'; el.plugOnline.querySelector('.v').textContent='erreur';
+        el.heroPlug.textContent = 'Prise : injoignable';
         return null;
       }
     }
 
-    // ================= CONFIG SERVEUR (zone + on/off) =================
     async function getConfig() {
-      try {
-        const res = await fetch('/api/config.php', { cache: 'no-store' });
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return await res.json();
-      } catch (e) {
-        log('Lecture config serveur impossible: ' + e.message);
-        return null;
-      }
+      try { const r = await fetch('/api/config.php',{cache:'no-store'}); if(!r.ok) throw 0; return await r.json(); }
+      catch(e){ return null; }
     }
 
-    // ================= ÉTAT SERVEUR (poll 10s) =================
-    let lastAlert = null;
+    let lastAlert = null, lastEnabled = null;
+    function setHero(cls, big, sub) {
+      el.hero.className = 'hero ' + cls;
+      el.heroBig.textContent = big;
+      el.heroSub.textContent = sub;
+    }
     async function pollState() {
       try {
-        const res = await fetch('/api/state.php', { cache: 'no-store' });
+        const res = await fetch('/api/state.php',{cache:'no-store'});
         const s = await res.json();
-        if (!s.ok) {
-          el.cronAge.textContent = `Serveur: ${s.error || 'pas de données'}`;
-          el.cronAge.className = 'pill warn';
-          return;
-        }
+        if (!s.ok) { setHero('dead','Pas encore de données', 'Le serveur démarre…'); el.cronAge.className='pill warn'; el.cronAge.querySelector('.v').textContent='attente'; return; }
         const age = s._age_seconds;
-        if (s.disabled) {
-          el.cronAge.textContent = `Serveur: surveillance DÉSACTIVÉE`;
-          el.cronAge.className = 'pill warn';
-          el.cronAlerte.textContent = 'Alerte: pause';
-          el.cronAlerte.className = 'pill warn';
-          el.boxEtat.className = 'box';
-          return;
-        }
-        el.cronAge.textContent = `Serveur: tick il y a ${age}s`;
-        el.cronAge.className = 'pill ' + (s._stale ? 'bad' : (age > 45 ? 'warn' : 'good'));
-        el.cronAlerte.textContent = `Alerte: ${s.alert_active ? 'ACTIVE' : 'inactif'}`;
-        el.cronAlerte.className = 'pill ' + (s.alert_active ? 'bad' : 'good');
-        el.boxEtat.className = 'box ' + (s.alert_active ? 'alert' : 'ok');
-        el.cronCompteur.textContent = `Navires: ${s.ships_total ?? '?'} (${s.ships_moving ?? '?'} en mouv.) — ${s.ships_in_range ?? '?'} déclencheur(s)`;
-        if (s.closest_ship) {
-          const c = s.closest_ship;
-          el.cronProche.textContent = `+ proche: ${c.name || ('MMSI ' + (c.mmsi || '?'))} @ ${c.distance}m`;
-        } else {
-          el.cronProche.textContent = '+ proche: aucun en mouvement';
-        }
-        if (lastAlert !== null && s.alert_active !== lastAlert) {
-          log(s.alert_active
-            ? `🔴 ALERTE SERVEUR — ${s.ships_in_range} navire(s) en mouvement dans la zone → prise allumée`
-            : '🟢 FIN ALERTE — zone libre → prise éteinte');
+        // Pills scan
+        el.cronAge.className = 'pill ' + (s.disabled?'warn':(s._stale?'bad':(age>45?'warn':'good')));
+        el.cronAge.querySelector('.v').textContent = s.disabled?'en pause':`tick ${age}s`;
+        el.cronCompteur.querySelector('.v').textContent = `${s.ships_total??'?'} (${s.ships_moving??'?'} bougent, ${s.ships_in_range??'?'} déclenchent)`;
+        el.cronProche.querySelector('.v').textContent = s.closest_ship
+          ? `${s.closest_ship.name||('MMSI '+(s.closest_ship.mmsi||'?'))} @ ${s.closest_ship.distance}m`
+          : 'aucun en mouvement';
+        // Hero
+        if (s.disabled) setHero('off','⏸ Surveillance en pause','La prise ne sera pas pilotée automatiquement');
+        else if (s._stale) setHero('dead','⚠ Serveur silencieux',`Aucun scan depuis ${age}s — vérifier Coolify`);
+        else if (s.alert_active) setHero('alert','🔴 ALERTE',`${s.ships_in_range} bateau(x) en mouvement dans la zone`);
+        else setHero('ok','🟢 Surveillance active','Aucun bateau en mouvement dans la zone');
+        // Transitions → journal
+        if (lastAlert!==null && s.alert_active!==lastAlert) {
+          log(s.alert_active ? `🔴 ALERTE — prise allumée par le serveur` : '🟢 Fin alerte — prise éteinte');
           setTimeout(pollPlug, 2500);
         }
-        lastAlert = s.alert_active;
-        if (Array.isArray(s.ships) && s.base) {
-          refreshMap(s.ships, s.base.lat, s.base.lon, s.radius_m);
-        }
-      } catch (e) {
-        el.cronAge.textContent = 'Serveur: injoignable';
-        el.cronAge.className = 'pill bad';
-      }
+        if (lastEnabled!==null && (!s.disabled)!==lastEnabled) log(s.disabled?'Surveillance désactivée':'Surveillance réactivée');
+        lastAlert = s.alert_active; lastEnabled = !s.disabled;
+        if (Array.isArray(s.ships) && s.base) refreshMap(s.ships, s.base.lat, s.base.lon, s.radius_m);
+      } catch(e){ setHero('dead','⚠ Serveur injoignable','Pas de connexion'); }
     }
 
-    // ================= BOUTONS =================
-    el.btnZoneSync.addEventListener('click', () => {
-      const lat = Number(el.lat.value), lon = Number(el.lon.value), radius_m = Number(el.rayon.value);
-      if (!isFinite(lat) || !isFinite(lon) || !isFinite(radius_m)) { log('Zone invalide'); return; }
-      postJson('/api/config.php', { lat, lon, radius_m }, 'Zone serveur').then(r => {
-        if (r && map) {
-          baseCircle.setLatLng([lat, lon]); baseCircle.setRadius(radius_m);
-          baseMarker.setLatLng([lat, lon]);
-          map.setView([lat, lon], map.getZoom());
-        }
-      });
-    });
-    el.btnCronOn.addEventListener('click', () => postJson('/api/config.php', { enabled: true }, 'Surveillance ACTIVER').then(() => setTimeout(pollState, 1500)));
-    el.btnCronOff.addEventListener('click', () => postJson('/api/config.php', { enabled: false }, 'Surveillance DÉSACTIVER').then(() => setTimeout(pollState, 1500)));
+    // ============ BOUTONS ============
+    el.btnCronOn.addEventListener('click', () => postJson('/api/config.php',{enabled:true},'Surveillance ACTIVER').then(()=>setTimeout(pollState,1200)));
+    el.btnCronOff.addEventListener('click', () => postJson('/api/config.php',{enabled:false},'Surveillance DÉSACTIVER').then(()=>setTimeout(pollState,1200)));
+    el.btnOn.addEventListener('click', () => shellyApi('on'));
+    el.btnOff.addEventListener('click', () => shellyApi('off'));
+    el.btnTest.addEventListener('click', () => shellyApi('on',10));
     el.btnPlugCheck.addEventListener('click', async () => {
       log('Détection de la prise…');
       const s = await pollPlug();
-      if (s) log(`Prise ${s.online ? 'EN LIGNE' : 'HORS LIGNE'} — sortie ${s.output ? 'ON' : 'OFF'} — ${s.power_w !== null ? s.power_w.toFixed(1) + ' W' : 'conso inconnue'} (${s.ms}ms)`);
-      else log('Détection ÉCHEC — voir pills ci-dessus');
+      if (s) log(`Prise ${s.online?'EN LIGNE':'HORS LIGNE'} — sortie ${s.output?'ON':'OFF'} — ${s.power_w!=null?s.power_w.toFixed(1)+' W':'conso ?'} (${s.ms}ms)`);
     });
-    el.btnTest.addEventListener('click', () => shellyApi('on', 10));
-    el.btnOn.addEventListener('click', () => shellyApi('on'));
-    el.btnOff.addEventListener('click', () => shellyApi('off'));
+    el.btnZoneSync.addEventListener('click', () => {
+      const lat=Number(el.lat.value), lon=Number(el.lon.value), radius_m=Number(el.rayon.value);
+      if (![lat,lon,radius_m].every(isFinite)) { log('Zone invalide'); return; }
+      postJson('/api/config.php',{lat,lon,radius_m},'Zone serveur').then(r=>{
+        if (r && map){ baseCircle.setLatLng([lat,lon]); baseCircle.setRadius(radius_m); baseMarker.setLatLng([lat,lon]); map.setView([lat,lon],map.getZoom()); }
+      });
+    });
 
-    // ================= INITIALISATION =================
+    // ============ INIT ============
     initMap();
+    setUnlocked(false);
+    if (el.pass.value) tryUnlock(); // si mdp déjà en session, tente le déverrouillage auto
     getConfig().then(cfg => {
       if (!cfg) return;
       if (isFinite(cfg.lat)) el.lat.value = cfg.lat;
       if (isFinite(cfg.lon)) el.lon.value = cfg.lon;
       if (isFinite(cfg.radius_m)) el.rayon.value = cfg.radius_m;
-      log(`Config serveur chargée — surveillance ${cfg.enabled ? 'ACTIVE' : 'désactivée'}, zone ${cfg.lat}, ${cfg.lon}, rayon ${cfg.radius_m}m`);
-      if (map) {
-        baseCircle.setLatLng([cfg.lat, cfg.lon]); baseCircle.setRadius(cfg.radius_m);
-        baseMarker.setLatLng([cfg.lat, cfg.lon]);
-        map.setView([cfg.lat, cfg.lon], 14);
-      }
+      if (map){ baseCircle.setLatLng([cfg.lat,cfg.lon]); baseCircle.setRadius(cfg.radius_m); baseMarker.setLatLng([cfg.lat,cfg.lon]); map.setView([cfg.lat,cfg.lon],14); }
+      log(`Config serveur : surveillance ${cfg.enabled?'ACTIVE':'désactivée'}, zone ${cfg.lat}, ${cfg.lon}, rayon ${cfg.radius_m} m`);
     });
-    pollState();
-    pollPlug();
-    setInterval(pollState, 10000);
+    pollState(); pollPlug();
+    setInterval(pollState, 8000);
     setInterval(pollPlug, 30000);
   </script>
 </body>

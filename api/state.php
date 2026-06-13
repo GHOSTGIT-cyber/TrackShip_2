@@ -30,7 +30,7 @@ if (!is_array($decoded)) {
 
 $age = time() - @filemtime($file);
 $decoded['_age_seconds'] = $age;
-$decoded['_stale']       = $age > 90; // > 90s → cron probablement HS
+$decoded['_stale']       = $age > 60; // > 60s (≈4 ticks manqués) → worker probablement HS
 $decoded['ok']           = true;
 
 echo json_encode($decoded, JSON_UNESCAPED_UNICODE);

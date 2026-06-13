@@ -5,7 +5,7 @@ declare(strict_types=1);
  * cron/tick.php — Un tick autonome de surveillance navires + déclenchement Shelly.
  *
  * Lancé en boucle par le conteneur lui-même (voir CMD du Dockerfile) :
- * un tick toutes les 30s, dès le démarrage, sans Scheduled Task Coolify.
+ * un tick toutes les 15s, dès le démarrage, sans Scheduled Task Coolify.
  *
  * Règles métier :
  *  - Seuls les navires EN MOUVEMENT (vitesse ≥ 0.5 kn, ou vitesse inconnue)
