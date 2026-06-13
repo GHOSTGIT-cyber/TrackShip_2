@@ -9,9 +9,11 @@
  * lat/lon/radius_m si présents (sinon fallback sur les env vars Coolify).
  */
 
+require_once __DIR__ . '/auth.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: https://alerte.bakabi.fr');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-Page-Auth');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Cache-Control: no-cache, no-store, must-revalidate');
 
@@ -42,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requirePageAuth();
     $body = json_decode((string) file_get_contents('php://input'), true);
     if (!is_array($body)) {
         http_response_code(400);

@@ -11,9 +11,11 @@
  * Doc     : https://shelly-api-docs.shelly.cloud/cloud-control-api/communication-v2/
  */
 
+require_once __DIR__ . '/auth.php';
+
 // ====== CORS ======
 header('Access-Control-Allow-Origin: https://alerte.bakabi.fr');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, X-Page-Auth');
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Vary: Origin');
 header('Content-Type: application/json; charset=utf-8');
@@ -29,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['ok' => false, 'error' => 'Méthode non autorisée (POST attendu)']);
     exit;
 }
+
+requirePageAuth();
 
 // ====== CONFIGURATION (variables d'environnement Coolify) ======
 $host     = getenv('SHELLY_HOST');

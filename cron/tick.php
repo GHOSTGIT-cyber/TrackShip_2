@@ -4,9 +4,15 @@ declare(strict_types=1);
 /**
  * cron/tick.php — Un tick autonome de surveillance navires + déclenchement Shelly.
  *
- * Appelé par Coolify Scheduled Tasks. Commande recommandée :
- *   php /var/www/html/cron/tick.php && sleep 30 && php /var/www/html/cron/tick.php
- * Cron expression : * * * * *  (chaque minute, soit deux ticks à 30s d'intervalle)
+ * Lancé en boucle par le conteneur lui-même (voir CMD du Dockerfile) :
+ * un tick toutes les 30s, dès le démarrage, sans Scheduled Task Coolify.
+ *
+ * Règles métier :
+ *  - Seuls les navires EN MOUVEMENT (vitesse ≥ 0.5 kn, ou vitesse inconnue)
+ *    déclenchent l'alerte. Les bateaux amarrés/à l'arrêt sont ignorés.
+ *  - Fail-safe : tant que l'alerte est active, on renvoie ON avec
+ *    toggle_after=120s à CHAQUE tick. Si le serveur meurt, la prise
+ *    s'éteint toute seule au bout de 2 minutes. Jamais bloquée allumée.
  */
 
 date_default_timezone_set('Europe/Paris');
@@ -55,9 +61,11 @@ function haversine(float $lat1, float $lon1, float $lat2, float $lon2): float {
     return 2 * $R * asin(sqrt($a));
 }
 
-function shellySet(string $host, string $key, string $id, bool $on): array {
+function shellySet(string $host, string $key, string $id, bool $on, ?int $toggleAfter = null): array {
     $url  = sprintf('https://%s/v2/devices/api/set/switch?auth_key=%s', $host, urlencode($key));
-    $body = json_encode(['id' => $id, 'channel' => 0, 'on' => $on]);
+    $payload = ['id' => $id, 'channel' => 0, 'on' => $on];
+    if ($on && $toggleAfter !== null) $payload['toggle_after'] = $toggleAfter;
+    $body = json_encode($payload);
     $ch   = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -146,26 +154,35 @@ $source = is_array($data) ? ($data['items'] ?? $data) : [];
 if (!is_array($source)) $source = [];
 
 // ====== DISTANCE ET FILTRE ======
+// Seuil de mouvement : en dessous, le navire est considéré amarré/à l'arrêt.
+// Vitesse inconnue → considéré en mouvement (sécurité : mieux vaut alerter en trop).
+const SEUIL_MOUVEMENT_KN = 0.5;
+
 $ships     = [];   // tous les navires avec position (pour la carte)
-$proches   = [];   // ≤ rayon
+$proches   = [];   // en mouvement ET ≤ rayon → déclencheurs
 $plusProche = null;
 foreach ($source as $t) {
     $nlat = $t['latitude'] ?? $t['lat'] ?? $t['Latitude'] ?? null;
     $nlon = $t['longitude'] ?? $t['lon'] ?? $t['Longitude'] ?? null;
     if ($nlat === null || $nlon === null) continue;
     $d = (int) round(haversine($LAT, $LON, (float) $nlat, (float) $nlon));
+    $speed  = $t['speed'] ?? $t['SOG'] ?? null;
+    $moving = ($speed === null) || ((float) $speed >= SEUIL_MOUVEMENT_KN);
     $info = [
         'name'     => $t['shipName'] ?? $t['vesselName'] ?? $t['ShipName'] ?? null,
         'mmsi'     => $t['mmsi']     ?? $t['MMSI']       ?? null,
         'lat'      => (float) $nlat,
         'lon'      => (float) $nlon,
         'distance' => $d,
-        'speed'    => $t['speed']  ?? $t['SOG'] ?? null,
+        'speed'    => $speed,
         'course'   => $t['course'] ?? $t['COG'] ?? null,
+        'moving'   => $moving,
     ];
     $ships[] = $info;
-    if ($plusProche === null || $d < $plusProche['distance']) $plusProche = $info;
-    if ($d <= $RAYON) $proches[] = $info;
+    if ($moving) {
+        if ($plusProche === null || $d < $plusProche['distance']) $plusProche = $info;
+        if ($d <= $RAYON) $proches[] = $info;
+    }
 }
 usort($proches, fn($a, $b) => $a['distance'] - $b['distance']);
 usort($ships, fn($a, $b) => $a['distance'] - $b['distance']);
@@ -178,12 +195,19 @@ if (is_file(STATE_FILE)) {
 $prevActive = $prev !== null ? (bool) ($prev['alert_active'] ?? false) : null;
 $nowActive  = count($proches) > 0;
 
-// ====== SHELLY : transition OU resynchronisation après redémarrage ======
+// ====== SHELLY ======
+// Alerte active  → ON + toggle_after à CHAQUE tick (réarme le fail-safe).
+// Fin d'alerte   → OFF une fois (transition ou état inconnu après redémarrage).
+const FAILSAFE_S = 120;
+
 $shellyAction = null;
 $shellyResult = null;
-if ($prevActive === null || $nowActive !== $prevActive) {
-    $shellyAction = $nowActive ? 'on' : 'off';
-    $shellyResult = shellySet($SHELLY_HOST, $SHELLY_KEY, $SHELLY_ID, $nowActive);
+if ($nowActive) {
+    $shellyAction = 'on';
+    $shellyResult = shellySet($SHELLY_HOST, $SHELLY_KEY, $SHELLY_ID, true, FAILSAFE_S);
+} elseif ($prevActive === null || $prevActive !== $nowActive) {
+    $shellyAction = 'off';
+    $shellyResult = shellySet($SHELLY_HOST, $SHELLY_KEY, $SHELLY_ID, false);
 }
 
 // ====== PERSIST STATE ======
@@ -193,6 +217,7 @@ $state = [
     'disabled'       => false,
     'alert_active'   => $nowActive,
     'ships_total'    => count($ships),
+    'ships_moving'   => count(array_filter($ships, fn($s) => $s['moving'])),
     'ships_in_range' => count($proches),
     'closest_ship'   => $plusProche,
     'ships'          => $ships,
@@ -213,6 +238,7 @@ $shellyTxt = $shellyAction
     ? sprintf(' | Shelly %s HTTP %s', strtoupper($shellyAction), $shellyResult['http'] ?? '?')
     : '';
 tickLog(sprintf(
-    'scan %dms %d navires, %d ≤ %dm%s%s',
-    $eurisMs, count($ships), count($proches), $RAYON, $procheTxt, $shellyTxt
+    'scan %dms %d navires (%d en mouvement), %d déclencheurs ≤ %dm%s%s',
+    $eurisMs, count($ships), count(array_filter($ships, fn($s) => $s['moving'])),
+    count($proches), $RAYON, $procheTxt, $shellyTxt
 ));
